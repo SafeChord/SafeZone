@@ -1,6 +1,5 @@
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
-from common.db.schema import cities, regions, covid_cases
+from sqlalchemy.orm import relationship, declarative_base
+from utils.db.schema import cities, regions, covid_cases
 
 Base = declarative_base()
 

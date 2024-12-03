@@ -1,4 +1,6 @@
-from sqlalchemy import MetaData, Table, Column, ForeignKey, Date, Integer, String
+from sqlalchemy import MetaData, Table, Column
+from sqlalchemy import ForeignKey, UniqueConstraint 
+from sqlalchemy import Date, Integer, String
 
 metadata = MetaData()
 
@@ -28,4 +30,5 @@ covid_cases = Table(
     Column("city_id", Integer, ForeignKey("cities.id"), nullable=False),
     Column("region_id", Integer, ForeignKey("regions.id"), nullable=False),
     Column("cases", Integer, nullable=False),
+    UniqueConstraint('date', 'city_id', 'region_id', name='uix_date_city_region'),
 )

@@ -1,23 +1,46 @@
 import json
 from datetime import datetime
-from common.custom_exceptions.exceptions import InvalidTaiwanCityException
-from common.custom_exceptions.exceptions import InvalidTaiwanRegionException
-from common.custom_exceptions.exceptions import InvalidCasesNumberException
-from common.custom_exceptions.exceptions import InvalidDateFormatException
+from utils.custom_exceptions.exceptions import InvalidTaiwanCityException
+from utils.custom_exceptions.exceptions import InvalidTaiwanRegionException
+from utils.custom_exceptions.exceptions import InvalidCasesNumberException
+from utils.custom_exceptions.exceptions import InvalidDateFormatException
+from utils.custom_exceptions.exceptions import ExtraFieldException
+from utils.custom_exceptions.exceptions import MissingDataException
+from config.logger import get_logger
 
+logger = get_logger()
     
-def validate_data(date, city, region, cases):
+def validate_data(**kwargs):
     """
     Validate the data to ensure it is in the correct format.
 
     This method validates the date, city, region, and cases fields of the CovidCase instance.
     """
+    excepted_fields = ["date", "city", "region", "cases"]
+    not_expected_fields = []
+    for field_name in kwargs.keys():
+        # field name not in the expected fields raise the ExtraFieldException
+        # in case: filed_name are duplicated in the request body it will raise the ExtraFieldException
+        if field_name not in excepted_fields:
+            not_expected_fields.append(field_name)
+        # field name same as the one of the expected fields drop the elemnt from the excepted_fields
+        if field_name in excepted_fields:
+            excepted_fields.remove(field_name)
+    
+    # if not_expected_fields is not empty means some of the fields are not expected
+    if len(not_expected_fields) > 0:
+        raise ExtraFieldException(not_expected_fields)
+    # if excepted_fields is not empty means some of the expected fields are missing 
+    if len(excepted_fields) > 0:
+        raise MissingDataException(excepted_fields)
+    
     # Check the values in every field in the data
-    validate_date(date)
+    logger.info(f"validating data = {kwargs["date"]}, {kwargs["city"]}, {kwargs["region"]}, {kwargs["cases"]}")
+    validate_date(kwargs["date"])
 
-    validate_geo(city, region)
+    validate_geo(kwargs["city"], kwargs["region"])
 
-    validate_cases(cases)
+    validate_cases(kwargs["cases"])
        
    
 def validate_date(date):
@@ -36,7 +59,7 @@ def validate_geo(city, region):
         raise InvalidTaiwanRegionException
 
         # Load geo data once
-    with open("/app/common/geo_data/taiwan_geo_data.json", encoding="utf-8") as f:
+    with open("/app/utils/geo_data/taiwan_geo_data.json", encoding="utf-8") as f:
         geo_data = json.load(f)
 
     if city not in geo_data:
