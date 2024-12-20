@@ -32,3 +32,14 @@ covid_cases = Table(
     Column("cases", Integer, nullable=False),
     UniqueConstraint('date', 'city_id', 'region_id', name='uix_date_city_region'),
 )
+
+# Populations Table
+populations = Table(
+    "populations",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("city_id", Integer, ForeignKey("cities.id"), nullable=False),
+    Column("region_id", Integer, ForeignKey("regions.id"), nullable=False),
+    Column("population", Integer, nullable=False),
+    UniqueConstraint('city_id', 'region_id', name='uix_city_region'),
+)
