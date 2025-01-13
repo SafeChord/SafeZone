@@ -1,2 +1,4 @@
 *.pyc
 __pycache__/
+# Ignore original datas to prevent storage overload
+geo_data/raw_data/*
