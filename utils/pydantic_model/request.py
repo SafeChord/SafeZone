@@ -1,6 +1,7 @@
 import datetime
-from typing import Optional
-from pydantic import BaseModel, Field, Literal, model_validator  # type: ignore
+from typing import Optional, Literal
+
+from pydantic import BaseModel, Field, model_validator  # type: ignore
 
 
 # --- payload/parameter models  --- #
@@ -30,21 +31,13 @@ class VerifyModel(BaseModel):
     ratio: bool = Field(False, description="The data is ratio of population or not.")
 
 
-## endpoint /time/set
-class SetTimeModel(BaseModel):
-    mock_time: Optional[str] = Field(
-        None, description="Invalid date format. Expected 'YYYY-MM-DD'."
-    )
-    accelerate: Optional[int] = Field(
-        None, description="Invalid accelerate format. Expected integer."
-    )
-    # 0: no acceleration, 1: 1x, 2: 2x, 3: 3x, etc.
-
-
 ## endpoint /health
-class HealthModel(BaseModel):
+class HealthCheckModel(BaseModel):
     target: Optional[str] = Field(None, description="Component (db, redis, mkdoc)")
     all: bool = Field(False, description="Check all components")
+
+
+## endpoint /time/set，use SetTimeModel instead
 
 
 # analytics api models
@@ -121,13 +114,15 @@ class CollectData(BaseModel):
     )
     cases: int = Field(..., ge=1, description="'cases' must be a positive integer.")
 
+
 # time server models
 ## endpoint /time/set
-class TimeSetModel(BaseModel):
-    mock_time: Optional[str] = Field(
+class SetTimeModel(BaseModel):
+    mock: bool = Field(False, description="Indicates whether to enable mock time.")
+    mock_date: Optional[str] = Field(
         None, description="Invalid date format. Expected 'YYYY-MM-DD'."
     )
-    accelerate: Optional[int] = Field(
-        None, ge=1, le=10, description="Invalid accelerate format. Expected integer."
+    acceleration: Optional[int] = Field(
+        None, ge=1, le=10, description="Invalid acceleration format. Expected integer."
     )
     # 0: no acceleration, 1: 1x, 2: 2x, 3: 3x, etc.
