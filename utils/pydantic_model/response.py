@@ -74,6 +74,7 @@ class ErrorModel(BaseModel):
 class APIResponse(BaseModel):
     success: bool = Field(..., description="Indicates if the request was successful.")
     message: str = Field(..., description="Primary summary message for the response.")
+    detail: Optional[str] = Field(None, description="Primary summary message for the response.")
     errors: Optional[Union[ErrorModel, List[ErrorModel]]] = Field(
         None, description="Error details. Can be a single error or a list of errors."
     )
@@ -82,6 +83,14 @@ class APIResponse(BaseModel):
         .isoformat()
         .replace("+00:00", "Z"),
         description="UTC timestamp (ISO8601) of when the response was generated.",
+    )
+
+class HealthResponse(APIResponse):
+    status: str = Field(
+        "healthy", description="Health status of the service, typically 'healthy'."
+    )
+    detail: Optional[str] = Field(
+        None, description= "Additional details about the health status, if any."
     )
 
 

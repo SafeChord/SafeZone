@@ -3,7 +3,7 @@ import logging
 import contextvars
 from logging import StreamHandler
 
-from pythonjsonlogger import jsonlogger # type: ignore
+from pythonjsonlogger.json import JsonFormatter # type: ignore 
 
 trace_id_var = contextvars.ContextVar("trace_id", default="-")
 log_fields = [
@@ -27,7 +27,7 @@ def setup_logger(log_level: str, service_name: str, service_version: str):
     logger.setLevel(log_level)
 
     json_handler = StreamHandler(sys.stdout)
-    json_formatter = jsonlogger.JsonFormatter(
+    json_formatter = JsonFormatter(
         fmt=' '.join([f'%({field})s' for field in log_fields]),
         rename_fields={"asctime": "timestamp"},
     )
