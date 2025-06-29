@@ -96,8 +96,8 @@ class DailyParameters(BaseModel):
 
 # ingestor models
 ## endpoint /collect
-class CollectData(BaseModel):
-    date: datetime.date = Field(
+class CovidDataModel(BaseModel):
+    date: str = Field(
         ..., description="Invalid date format. Expected 'YYYY-MM-DD'."
     )
     city: str = Field(
