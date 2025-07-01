@@ -87,12 +87,9 @@ class APIResponse(BaseModel):
 
 class HealthResponse(APIResponse):
     status: str = Field(
-        "healthy", description="Health status of the service, typically 'healthy'."
+        ..., description="Health status of the service, typically 'healthy'."
     )
-    detail: Optional[str] = Field(
-        None, description= "Additional details about the health status, if any."
-    )
-
+    
 
 # analytics api response model
 class AnalyticsAPIResponse(APIResponse):

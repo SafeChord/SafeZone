@@ -98,7 +98,9 @@ class DailyParameters(BaseModel):
 ## endpoint /collect
 class CovidDataModel(BaseModel):
     date: str = Field(
-        ..., description="Invalid date format. Expected 'YYYY-MM-DD'."
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$", 
+        description="Invalid date format. Expected 'YYYY-MM-DD'."
     )
     city: str = Field(
         ...,
