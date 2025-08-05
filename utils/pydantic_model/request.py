@@ -15,6 +15,11 @@ class SimulateModel(BaseModel):
         None, description="Invalid date format. Expected 'YYYY-MM-DD'."
     )
 
+## endpoint /db/init 
+class DBInitModel(BaseModel):
+    force: bool = Field(
+        False, description="Force re-initialize the database with administrative data."
+    )
 
 ## endpoint /dataflow/verify
 class VerifyModel(BaseModel):
