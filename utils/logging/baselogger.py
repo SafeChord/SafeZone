@@ -1,14 +1,13 @@
 import sys
 import time
 import logging
-import contextvars
-
 from logging import StreamHandler
 from datetime import datetime, timezone
 
 from pythonjsonlogger.json import JsonFormatter  # type: ignore
 
-trace_id_var = contextvars.ContextVar("trace_id", default="-")
+from utils.context import trace_id_var
+
 log_fields = [
     "timestamp",
     "ts",
@@ -38,11 +37,20 @@ class ServiceInfoFilter(logging.Filter):
         return True
 
 
-def setup_logger(log_level: str, service_name: str, service_version: str):
+def setup_logger(log_level: str, service_name: str, service_version: str, log_output: str = "stdout"):
     logger = logging.getLogger()
+
+    if logger.hasHandlers():
+        logger.debug("Logger already configured, skipping setup.")
+        return
+    
     logger.setLevel(log_level)
 
-    json_handler = StreamHandler(sys.stdout)
+    if log_output == "stdout":
+        json_handler = StreamHandler(sys.stdout)
+    elif log_output == "stderr":
+        json_handler = StreamHandler(sys.stderr)
+
     json_formatter = JsonFormatter(
         fmt=" ".join([f"%({field})s" for field in log_fields]),
         # To ensure cross-language log compatibility with tools like Loki,

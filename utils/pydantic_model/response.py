@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict, Literal
 
 from pydantic import BaseModel, Field  # type: ignore
 
@@ -74,7 +74,9 @@ class ErrorModel(BaseModel):
 class APIResponse(BaseModel):
     success: bool = Field(..., description="Indicates if the request was successful.")
     message: str = Field(..., description="Primary summary message for the response.")
-    detail: Optional[str] = Field(None, description="Primary summary message for the response.")
+    detail: Optional[str] = Field(
+        None, description="Primary summary message for the response."
+    )
     errors: Optional[Union[ErrorModel, List[ErrorModel]]] = Field(
         None, description="Error details. Can be a single error or a list of errors."
     )
@@ -85,15 +87,19 @@ class APIResponse(BaseModel):
         description="UTC timestamp (ISO8601) of when the response was generated.",
     )
 
+
 class HealthResponse(APIResponse):
-    status: str = Field(
-        ..., description="Health status of the service, typically 'healthy'."
+    status: Dict[str, Literal["success", "fail"]] = Field(
+        ..., description="Health status of the components, typically 'healthy'."
     )
-    
+
 
 # analytics api response model
 class AnalyticsAPIResponse(APIResponse):
-    data: Optional[AnalyticsAPIData] = Field(None, description="AnalyticsAPIData details.")
+    data: Optional[AnalyticsAPIData] = Field(
+        None, description="AnalyticsAPIData details."
+    )
+
 
 # time server response model
 class SystemDateResponse(APIResponse):
@@ -101,5 +107,8 @@ class SystemDateResponse(APIResponse):
         None, description="The system date in 'YYYY-MM-DD' format."
     )
 
+
 class MocktimeStatusResponse(APIResponse):
-    data: Optional[MocktimeStatusData] = Field(None, description="MocktimeStatusData details.")
+    data: Optional[MocktimeStatusData] = Field(
+        None, description="MocktimeStatusData details."
+    )
