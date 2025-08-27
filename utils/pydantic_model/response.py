@@ -89,7 +89,7 @@ class APIResponse(BaseModel):
 
 
 class HealthResponse(APIResponse):
-    status: Dict[str, Literal["success", "fail"]] = Field(
+    status: Dict[str, Literal["healthy", "unhealthy"]] = Field(
         ..., description="Health status of the components, typically 'healthy'."
     )
 
