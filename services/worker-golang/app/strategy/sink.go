@@ -7,6 +7,6 @@ import (
 )
 
 type EventSink interface {
-	Flush(context.Context, []schema.CovidEvent) error
+	Flush(context.Context, *[]schema.CovidEvent) error
 	Close(ctx context.Context) error
 }
