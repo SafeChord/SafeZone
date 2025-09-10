@@ -9,8 +9,12 @@ import (
 	"go.uber.org/zap"
 )
 
+type contextKey string
+
 type ContextLogger struct {
-	Logger *zap.Logger
+	Logger      *zap.Logger
+	WorkerIDKey contextKey
+	TraceIDKey  contextKey
 }
 
 // Init initializes the logger with the given service name, version, and environment.
@@ -41,7 +45,9 @@ func NewContextLogger(serviceName, serviceVersion, env string) *ContextLogger {
 	)
 
 	return &ContextLogger{
-		Logger: baseLogger,
+		Logger:      baseLogger,
+		TraceIDKey:  contextKey("trace_id"),
+		WorkerIDKey: contextKey("worker_id"),
 	}
 }
 
@@ -51,8 +57,8 @@ func NewContextLogger(serviceName, serviceVersion, env string) *ContextLogger {
 
 func (cl *ContextLogger) Info(ctx context.Context, msg string, fields ...zap.Field) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
-	worker_id := cl.getContextField(ctx, "worker_id")
-	trace_id := cl.getContextField(ctx, "trace_id")
+	worker_id := cl.getContextField(ctx, cl.WorkerIDKey)
+	trace_id := cl.getContextField(ctx, cl.TraceIDKey)
 
 	baseFields := []zap.Field{
 		zap.String("timestamp", timestamp),
@@ -65,8 +71,8 @@ func (cl *ContextLogger) Info(ctx context.Context, msg string, fields ...zap.Fie
 
 func (cl *ContextLogger) Debug(ctx context.Context, msg string, fields ...zap.Field) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
-	worker_id := cl.getContextField(ctx, "worker_id")
-	trace_id := cl.getContextField(ctx, "trace_id")
+	worker_id := cl.getContextField(ctx, cl.WorkerIDKey)
+	trace_id := cl.getContextField(ctx, cl.TraceIDKey)
 
 	baseFields := []zap.Field{
 		zap.String("timestamp", timestamp),
@@ -79,8 +85,8 @@ func (cl *ContextLogger) Debug(ctx context.Context, msg string, fields ...zap.Fi
 
 func (cl *ContextLogger) Warn(ctx context.Context, msg string, fields ...zap.Field) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
-	worker_id := cl.getContextField(ctx, "worker_id")
-	trace_id := cl.getContextField(ctx, "trace_id")
+	worker_id := cl.getContextField(ctx, cl.WorkerIDKey)
+	trace_id := cl.getContextField(ctx, cl.TraceIDKey)
 
 	baseFields := []zap.Field{
 		zap.String("timestamp", timestamp),
@@ -93,8 +99,8 @@ func (cl *ContextLogger) Warn(ctx context.Context, msg string, fields ...zap.Fie
 
 func (cl *ContextLogger) Error(ctx context.Context, msg string, fields ...zap.Field) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
-	worker_id := cl.getContextField(ctx, "worker_id")
-	trace_id := cl.getContextField(ctx, "trace_id")
+	worker_id := cl.getContextField(ctx, cl.WorkerIDKey)
+	trace_id := cl.getContextField(ctx, cl.TraceIDKey)
 
 	baseFields := []zap.Field{
 		zap.String("timestamp", timestamp),
@@ -105,7 +111,7 @@ func (cl *ContextLogger) Error(ctx context.Context, msg string, fields ...zap.Fi
 	cl.Logger.Error(msg, allFields...)
 }
 
-func (cl *ContextLogger) getContextField(ctx context.Context, field string) string {
+func (cl *ContextLogger) getContextField(ctx context.Context, field any) string {
 	if value := ctx.Value(field); value != nil {
 		if str, ok := value.(string); ok {
 			return str

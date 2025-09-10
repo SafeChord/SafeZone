@@ -65,11 +65,50 @@ szcli() {
 # Cleanup function that runs on script exit
 cleanup() {
     log_info "--- Tearing down test environment ---"
-    docker compose -f "$COMPOSE_FILE" --profile=ui down -v --remove-orphans
-    docker compose -f "$COMPOSE_FILE" --profile=core down -v --remove-orphans
-    docker compose -f "$COMPOSE_FILE" --profile=toolkit down -v --remove-orphans
-    docker compose -f "$COMPOSE_FILE" --profile=infra down -v --remove-orphans
+    # docker compose -f "$COMPOSE_FILE" --profile=ui down -v --remove-orphans
+    # docker compose -f "$COMPOSE_FILE" --profile=core down -v --remove-orphans
+    # docker compose -f "$COMPOSE_FILE" --profile=toolkit down -v --remove-orphans
+    # docker compose -f "$COMPOSE_FILE" --profile=infra down -v --remove-orphans
     log_success "Test environment cleaned up."
+}
+
+# Function to wait for all infra services to be healthy
+wait_for_infra_services() {
+    log_info "Waiting for all infra services to become healthy..."
+    
+    local services=("db" "redis-state" "redis-cache" "kafka")
+    local all_healthy=false
+    local attempt=0
+    local max_attempts=30
+    local sleep_interval=5
+
+    while [ "$all_healthy" = false ] && [ $attempt -lt $max_attempts ]; do
+        all_healthy=true
+        for service in "${services[@]}"; do
+            local status=$(docker compose -f "$COMPOSE_FILE" ps -q "$service" | xargs docker inspect -f '{{.State.Health.Status}}' 2>/dev/null || echo "starting")
+            
+            if [ "$status" != "healthy" ]; then
+                all_healthy=false
+                echo -n "." 
+                break 
+            fi
+        done
+
+        if [ "$all_healthy" = false ]; then
+            sleep $sleep_interval 
+            ((attempt++))
+        fi
+    done
+
+    echo ""
+
+    if [ "$all_healthy" = true ]; then
+        log_success "All infra services are healthy and ready!"
+    else
+        log_error "Timeout: Not all infra services became healthy after 150 seconds."
+        docker compose -f "$COMPOSE_FILE" logs 
+        exit 1
+    fi
 }
 
 # Set a trap to ensure cleanup runs regardless of script exit status (success or failure)
@@ -79,8 +118,10 @@ trap cleanup EXIT
 setup_environment() {
     log_info "Starting infrastructure services (db, redis)..."
     docker compose -f "$COMPOSE_FILE" --profile=infra up -d
-    # A more robust waiting mechanism like wait-for-it.sh could be used here
-    sleep 10
+    sleep 5
+
+    # robust wait for infra services to be healthy
+    wait_for_infra_services
 
     log_info "Starting toolkit services (cli-relay)..."
     docker compose -f "$COMPOSE_FILE" --profile=toolkit up -d
