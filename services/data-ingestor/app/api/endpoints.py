@@ -29,9 +29,7 @@ class CovidContract(BaseModel):
 
 
 def generate_partition_key(city: str, region: str) -> str:
-    # hash region(utf-8 str) to numeric value, betwwn 0 and 10
-    region_hash = hash(region.encode("utf-8")) % 10
-    return f"{city}-{region_hash}"
+    return f"{city}-{region}"
 
 
 async def sent_to_kafka(
@@ -65,7 +63,9 @@ async def sent_to_kafka(
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
-    return HealthResponse(success=True, message="Service is healthy.", status={"ingestor": "healthy"})
+    return HealthResponse(
+        success=True, message="Service is healthy.", status={"ingestor": "healthy"}
+    )
 
 
 @router.post("/covid_event", response_model=APIResponse)

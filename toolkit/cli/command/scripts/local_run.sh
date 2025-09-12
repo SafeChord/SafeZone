@@ -4,7 +4,6 @@ set -e
 # --------- Customizable Section ---------
 IMAGE_REPO="ghcr.io/safezone"
 IMAGE_NAME="safezone-cli-command"
-# IMAGE_TAG="latest"
 INSTANCE_NAME="safezone-cli-daemon"
 # ENV variables for the daemon
 RELAY_URL="http://172.17.0.1:8000" # relay URL for docker compose testing
