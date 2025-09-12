@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.2.1] - 2025-09-12
+
+This is a critical stability and modernization patch for the v0.2.x series. It resolves a fundamental compatibility issue that prevented the successful deployment of the asynchronous architecture on a modern, KRaft-based Kafka infrastructure. This release ensures that the core features introduced in v0.2.0 are robust, reliable, and production-ready.
+
+### Changed
+
+- **Upgraded Kafka Integration to be KRaft-native**: The entire Kafka client integration has been modernized. The underlying Go client library was migrated from `segmentio/kafka-go` to the more robust and KRaft-compatible `twmb/franz-go`.
+- **Hardened Consumer Offset Management**: The Go worker's consumer logic was completely refactored to disable auto-commit and implement manual offset management. This guarantees "at-least-once" message processing and prevents the silent data loss that occurred in v0.2.0 under graceful shutdown or rebalancing scenarios.
+- **Optimized Producer Partitioning Strategy**: The producer's partition key logic was updated to use a "natural key" (e.g., city-region), leveraging Kafka's native Murmur2 partitioner for better data distribution and performance.
+
+### Fixed
+
+- **Resolved KRaft Compatibility Bug**: Fixed a critical "silent failure" bug where the consumer would fail to receive messages from a KRaft-based Kafka cluster due to an upstream library issue, which was blocking the deployment of the v0.2.0 architecture.
+- **Stabilized Test Environment**: The `smoke-test.sh` framework was hardened by replacing fixed `sleep` commands with a robust polling mechanism (`wait_for_infra_services`). This eliminates race conditions during startup and ensures the reliability of the entire CI pipeline.
+
 ## [0.2.0] - 2025-09-01
 
 This version marks a major milestone, evolving the SafeChord project from an MVP into a feature-complete platform with industrial-grade automation and observability capabilities. Updates span infrastructure, network architecture, asynchronous application-layer processing, and the developer toolchain.
