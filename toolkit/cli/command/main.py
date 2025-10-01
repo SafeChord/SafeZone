@@ -231,15 +231,15 @@ def set(
         None, "--acceleration", help="Time acceleration rate"
     ),
 ):
-    """Set the system mock_date or acceleration."""
+    """Set the system mock_date or acceleration or reset to real time."""
+    mock = False if reset else True
+
     # Check if both mock_date and acceleration are None
     if mock and not mock_date and not acceleration:
         rich.print(
             "[bold red]Error:[/bold red] You must specify either --mockdate or --acceleration."
         )
         raise typer.Exit(1)
-
-    mock = False if reset else True
 
     return TimeClient().set(mock=mock, mock_date=mock_date, acceleration=acceleration)
 

@@ -65,10 +65,10 @@ szcli() {
 # Cleanup function that runs on script exit
 cleanup() {
     log_info "--- Tearing down test environment ---"
-    # docker compose -f "$COMPOSE_FILE" --profile=ui down -v --remove-orphans
-    # docker compose -f "$COMPOSE_FILE" --profile=core down -v --remove-orphans
-    # docker compose -f "$COMPOSE_FILE" --profile=toolkit down -v --remove-orphans
-    # docker compose -f "$COMPOSE_FILE" --profile=infra down -v --remove-orphans
+    docker compose -f "$COMPOSE_FILE" --profile=ui down -v --remove-orphans
+    docker compose -f "$COMPOSE_FILE" --profile=core down -v --remove-orphans
+    docker compose -f "$COMPOSE_FILE" --profile=toolkit down -v --remove-orphans
+    docker compose -f "$COMPOSE_FILE" --profile=infra down -v --remove-orphans
     log_success "Test environment cleaned up."
 }
 

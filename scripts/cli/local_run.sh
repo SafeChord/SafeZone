@@ -6,11 +6,17 @@ IMAGE_REPO="ghcr.io/safezone"
 IMAGE_NAME="safezone-cli-command"
 INSTANCE_NAME="safezone-cli-daemon"
 # ENV variables for the daemon
-RELAY_URL="http://172.17.0.1:8000" # relay URL for docker compose testing
-# RELAY_URL="https://safezone.omh.idv.tw/cli" # relay URL for k3s
+# RELAY_URL="http://172.17.0.1:8000" # relay URL for docker compose testing
+RELAY_URL="https://safezone.omh.idv.tw/preview/cli" # relay URL for k3s
 RELAY_TIMEOUT=3600
 TOKEN_FILE="/app/.temp_token.json"
 # --------------------------------
+
+# Check if IMAGE_TAG is set, if not, default to 'latest'
+if [ -z "$IMAGE_TAG" ]; then
+  # echo "[INFO] IMAGE_TAG is not set. Defaulting to 'latest'."
+  IMAGE_TAG="latest"
+fi
 
 # 1. Remove exited containers (to avoid zombie containers occupying the name)
 if docker ps -a --filter "name=$INSTANCE_NAME" --filter "status=exited" | grep -q $INSTANCE_NAME; then
@@ -21,7 +27,8 @@ fi
 # 2. Pull image if not found
 if ! docker image inspect "$IMAGE_NAME:$IMAGE_TAG" > /dev/null 2>&1; then
   echo "Docker image $IMAGE_NAME:$IMAGE_TAG not found. Pulling..."
-  docker pull "$IMAGE_REPO/$IMAGE_NAME:$IMAGE_TAG"
+  docker pull "$IMAGE_REPO/$IMAGE_NAME:$IMAGE_TAG" 
+  docker tag "$IMAGE_REPO/$IMAGE_NAME:$IMAGE_TAG" "$IMAGE_NAME:$IMAGE_TAG"
 fi
 
 # 3. Run daemon if not already running

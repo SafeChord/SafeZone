@@ -10,7 +10,6 @@ ENV PYTHONPATH=/app
 WORKDIR /app
 
 RUN chmod +x /app/main.py && ln -s /app/main.py /usr/local/bin/szcli
-RUN chmod +x /app/scripts/jobs/init_db.sh
-RUN chmod +x /app/scripts/jobs/seed_data.sh
+RUN chmod +x /app/scripts
 
 CMD ["tail", "-f", "/dev/null"]
