@@ -9,16 +9,16 @@ def get_city_geodata(city):
     # load the geojson data for the specified city
 
     # load the city center location
-    with open("app/utils/geo_data/boundaries/accessory/city_center.json", "r") as f:
+    with open("/app/utils/geo_data/boundaries/accessory/city_center.json", "r") as f:
         city_center = json.load(f)
 
     # load the city code mapping
-    with open("app/utils/geo_data/boundaries/accessory/city_code.json", "r") as f:
+    with open("/app/utils/geo_data/boundaries/accessory/city_code.json", "r") as f:
         city_code_mapping = json.load(f)
     # load the geojson data by city code
     city_code = city_code_mapping[city]
     with open(
-        f"app/utils/geo_data/boundaries/regions/{city_code}_region.json",
+        f"/app/utils/geo_data/boundaries/regions/{city_code}_region.json",
         "r",
     ) as f:
         geojson_data = json.load(f)
@@ -83,7 +83,7 @@ def get_init_map():
 # risk map of whole taiwan
 def get_tw_risk_map(city_risk):
     # risk map of whole taiwan with city level risk initialized
-    with open(f"app/utils/geo_data/boundaries/geo_city.json", "r") as f:
+    with open(f"/app/utils/geo_data/boundaries/geo_city.json", "r") as f:
         geojson_data = json.load(f)
 
     return go.Figure(

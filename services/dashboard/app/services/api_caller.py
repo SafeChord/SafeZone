@@ -18,7 +18,7 @@ def general_update(model, path):
 
     req_uuid = str(uuid.uuid4())
 
-    logger.info("Sent request to analytics api.", trace_id=req_uuid)
+    logger.info("Sent request to analytics api.", extra={"trace_id": req_uuid})
 
     url = f"{API_URL}/{path}"
     response = requests.get(url, headers={"X-Trace-ID": req_uuid}, params=model.model_dump())
@@ -26,7 +26,7 @@ def general_update(model, path):
     # raise an error if the request was not successful by http status code
     response.raise_for_status()
 
-    logger.info("Get response from analytics api.", trace_id=req_uuid)
+    logger.info("Get response from analytics api.", extra={"trace_id": req_uuid})
 
     # check if the request was successful, it should a model of APIResponse
     api_response = AnalyticsAPIResponse(**response.json()).model_dump(exclude_none=True)
