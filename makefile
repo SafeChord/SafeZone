@@ -139,7 +139,27 @@ local-ci:
 	@tput cnorm
 
 # -------------------------
-# 7. Help
+# 7. Local Development Environment
+# -------------------------
+dev-up:
+	@echo "====== Starting Local Dev Environment ======"
+	@COMPOSE_FILE=$(SMOKE_COMPOSE_FILE) VERSION=latest \
+		bash scripts/dev-up.sh
+
+dev-down:
+	@echo "====== Stopping Local Dev Environment ======"
+	@COMPOSE_FILE=$(SMOKE_COMPOSE_FILE) VERSION=latest \
+		bash scripts/dev-down.sh
+
+dev-restart: dev-down dev-up
+	@echo "====== Environment Restarted ======"
+
+dev-logs:
+	@echo "====== Following Logs (Ctrl+C to exit) ======"
+	@docker compose -f $(SMOKE_COMPOSE_FILE) logs -f
+
+# -------------------------
+# 8. Help
 # -------------------------
 help:
 	@echo "Available targets:"
@@ -155,3 +175,7 @@ help:
 	@echo "  local-ci-compose     Run local CI with compose job"
 	@echo "  local-ci-down        Bring down the local CI environment"
 	@echo "  help                 Show this help message"
+	@echo "  dev-up               Start the local development environment"
+	@echo "  dev-down             Stop the local development environment"
+	@echo "  dev-restart          Restart the local development environment"
+	@echo "  dev-logs             Follow logs of the local development environment"
