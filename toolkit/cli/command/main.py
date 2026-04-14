@@ -32,10 +32,14 @@ def main(
     output_format: str = typer.Option(
         "rich", "--output", "-o", help="Set the output format."
     ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Include HTTP headers in output."
+    ),
 ):
     # set context
     global_context.set("trace_id", str(uuid.uuid4()))
     global_context.set("output_format", output_format)
+    global_context.set("verbose", verbose)
 
     # setup logger
     if debug:

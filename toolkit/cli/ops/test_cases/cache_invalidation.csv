@@ -1,0 +1,7 @@
+szcli_command,jq_path,expected_value
+"szcli -o json dataflow simulate 1970-01-01",.response.success,true
+"szcli -o json -v dataflow verify 1970-01-01",.headers.X-Cache-Status,MISS
+"szcli -o json -v dataflow verify 1970-01-01",.headers.X-Cache-Status,HIT
+"szcli -o json dataflow simulate 1970-01-01",.response.success,true
+"szcli -o json -v dataflow verify 1970-01-01",.headers.X-Cache-Status,MISS
+"szcli -o json -v dataflow verify 1970-01-01",.headers.X-Cache-Status,HIT

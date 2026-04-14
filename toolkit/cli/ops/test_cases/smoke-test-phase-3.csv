@@ -1,0 +1,12 @@
+szcli_command,jq_path,expected_value
+"szcli -o json dataflow simulate 1970-01-01 --enddate=1970-01-30", ".response.success", "true"
+"szcli -o json dataflow verify 1970-01-30 --interval=30", ".response.data.aggregated_cases", 2228
+"szcli -o json dataflow verify 1970-01-30 --interval=30 --city=台中市", ".response.data.aggregated_cases", 0
+"szcli -o json dataflow verify 1970-01-30 --interval=30 --city=台北市 --region=中山區", ".response.data.aggregated_cases", 1004
+"szcli -o json dataflow verify 1970-01-30 --interval=14 --city=台北市 --region=中山區", ".response.data.aggregated_cases", 1
+"szcli -o json dataflow verify 1970-01-14 --interval=14 --city=台北市 --region=中山區", ".response.data.aggregated_cases", 1003
+"szcli -o json dataflow verify 1970-01-14 --interval=14 --city=台北市 --region=中山區 --ratio", ".response.data.cases_population_ratio", 46.36092
+"szcli -o json dataflow verify 1970-01-07 --interval=7", ".response.data.aggregated_cases", 17
+"szcli -o json dataflow verify 1970-01-07 --interval=3", ".response.data.aggregated_cases", 6
+"szcli -o json dataflow verify 1970-01-01 --city=台北市 --region=中山區", ".response.data.aggregated_cases", 2
+"szcli -o json dataflow verify 1970-01-01 --city=台北市 --region=中山區 --ratio", ".response.data.cases_population_ratio", 0.09244

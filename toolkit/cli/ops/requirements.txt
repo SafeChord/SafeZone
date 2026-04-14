@@ -1,2 +1,0 @@
-# No additional dependencies required.
-# Base image (safezone-cli-command) provides all needed packages.
