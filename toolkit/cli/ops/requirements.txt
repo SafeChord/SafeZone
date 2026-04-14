@@ -1,1 +1,2 @@
-pytest==8.3.5
+# No additional dependencies required.
+# Base image (safezone-cli-command) provides all needed packages.
