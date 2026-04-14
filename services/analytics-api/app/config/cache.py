@@ -95,10 +95,12 @@ def redis_cache(endpoint, ttl=86400):
             cached = await cache_client.get(cache_key)
             if cached:
                 logger.debug(f"Cache hit: {cache_key}")
+                request.state.cache_status = "HIT"
                 return AnalyticsAPIResponse.model_validate_json(cached)
 
             # if cache miss, call the function and store the result in cache
             logger.debug(f"Cache miss: {cache_key}")
+            request.state.cache_status = "MISS"
             resp = await func(*args, **kwargs)
             # resp is an instance of AnalyticsAPIResponse, it can be serialized to JSON
             # and can be return as a JSONResponse content

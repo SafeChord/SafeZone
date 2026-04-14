@@ -76,6 +76,12 @@ async def add_trace_id(request, call_next):
     finally:
         trace_id_var.reset(token)
     response.headers["X-Trace-ID"] = trace_id
+
+    # Forward cache status from redis_cache decorator
+    cache_status = getattr(request.state, "cache_status", None)
+    if cache_status:
+        response.headers["X-Cache-Status"] = cache_status
+
     return response
 
 
