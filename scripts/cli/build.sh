@@ -7,8 +7,10 @@ set -e
 
 COMMAND_IMAGE_NAME="safezone-cli-command"
 RELAY_IMAGE_NAME="safezone-cli-relay"
+OPS_IMAGE_NAME="safezone-cli-ops"
 COMMAND_DOCKERFILE_PATH="./toolkit/cli/command"
 RELAY_DOCKERFILE_PATH="./toolkit/cli/relay"
+OPS_DOCKERFILE_PATH="./toolkit/cli/ops"
 
 # check if IMAGE_TAG is set, if not, default to 'latest'
 if [ -z "$IMAGE_TAG" ]; then
@@ -25,3 +27,11 @@ docker buildx build -t "$COMMAND_IMAGE_NAME:$IMAGE_TAG" -f "$COMMAND_DOCKERFILE_
 echo "[PHASE 2] Building CLI relay image..."
 
 docker buildx build -t "$RELAY_IMAGE_NAME:$IMAGE_TAG" -f "$RELAY_DOCKERFILE_PATH/Dockerfile" .
+
+# ----------- PHASE 3: Build CLI Ops Image (Overlay) ----------
+echo "[PHASE 3] Building CLI ops image (overlay on command:$IMAGE_TAG)..."
+
+docker buildx build \
+  --build-arg BASE_IMAGE_TAG="$IMAGE_TAG" \
+  -t "$OPS_IMAGE_NAME:$IMAGE_TAG" \
+  -f "$OPS_DOCKERFILE_PATH/Dockerfile" .

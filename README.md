@@ -8,6 +8,8 @@ A microservices-based health safety map information system, currently using simu
 
 This repository (Safezone) serves as the **application layer** of the SafeChord project, responsible for implementing the data-driven application named **SafeZone**. The primary goal of SafeZone is to simulate a complete data ecosystem—from event generation and asynchronous ingestion to final analysis and visualization.
 
+> 💡 **Context**: This is part of the larger **SafeChord Ecosystem**. While this repository focuses on application logic, the underlying infrastructure and GitOps platform are managed in the [**Chorde**](../Chorde) repository.
+
 The code in this repository is not just about making features work; it's about crafting an application blueprint that reflects a "production-grade" mindset, demonstrated through:
 
 * **System Design & Architecture**  
@@ -59,6 +61,16 @@ make smoke-test
 If all tests pass, the application code is verified.
 
 ℹ️ **Note**: To improve the local development experience, a command for persistently running the environment (e.g., make dev-up) is planned for a future version.
+
+## **🌐 Deployment & Infrastructure**
+
+While **SafeZone** is designed to run on any standard Kubernetes environment, the complete reference implementation of the SafeChord project is orchestrated across three distinct layers to ensure separation of concerns:
+
+*   **Application**: This repository (**SafeZone**).
+*   **Deployment Configuration**: The [safezone-deploy](../SafeZone-Deploy) repository manages the Helm charts and environment-specific configurations.
+*   **Infrastructure Platform**: The [Chorde](../Chorde) repository provides the underlying GitOps-managed Kubernetes infrastructure (Proof-of-Concept).
+
+This structure demonstrates a production-grade decoupling where the application code is versioned and managed independently from the underlying infrastructure it runs on.
 
 ## **📖 Full Documentation**
 

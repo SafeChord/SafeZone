@@ -10,6 +10,12 @@ ENV PYTHONPATH=/app
 WORKDIR /app
 
 RUN chmod +x /app/main.py && ln -s /app/main.py /usr/local/bin/szcli
-RUN chmod +x /app/scripts
+
+# Install jq for JSON processing
+RUN set -eux; \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends jq; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*
 
 CMD ["tail", "-f", "/dev/null"]
