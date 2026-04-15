@@ -3,7 +3,7 @@ import logging
 
 # third party library
 # fastapi is a web framework for building APIs with Python.
-from fastapi import APIRouter, Depends, HTTPException, Depends  # type: ignore
+from fastapi import APIRouter, Depends, HTTPException, Response  # type: ignore
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials  # type: ignore
 
 # google-auth is a library for Google Authentication
@@ -106,6 +106,7 @@ async def simulate(
 @router.get("/dataflow/verify", response_model=AnalyticsAPIResponse)
 async def verify(
     date: str,
+    response: Response,
     interval: int = 1,
     city: str = None,
     region: str = None,
@@ -124,14 +125,20 @@ async def verify(
             region=region,
             ratio=ratio,
         )
-        response_json = service_helper.verify(
+        result = service_helper.verify(
             date=date,
             interval=interval,
             city=city,
             region=region,
             ratio=ratio,
         )
-        return AnalyticsAPIResponse(**response_json)
+
+        # Forward protocol-level headers from analytics-api
+        cache_status = result["headers"].get("X-Cache-Status", "")
+        if cache_status:
+            response.headers["X-Cache-Status"] = cache_status
+
+        return AnalyticsAPIResponse(**result["body"])
 
     except Exception as e:
         logger.error(f"Dataflow/verify execute failed: {str(e)}")

@@ -53,7 +53,12 @@ def verify(date: str, interval: int, city: str, region: str, ratio: bool = False
             headers={"X-Trace-ID": trace_id},
         )
     response.raise_for_status()  # Raise an error for bad responses
-    return response.json()
+    return {
+        "body": response.json(),
+        "headers": {
+            "X-Cache-Status": response.headers.get("X-Cache-Status", ""),
+        },
+    }
 
 
 def _reset_cache_version(trace_id: str):

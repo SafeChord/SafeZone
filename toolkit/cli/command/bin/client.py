@@ -115,7 +115,9 @@ class BaseAuthClient:
         resp_body = resp.json()
         checked_resp = response_model(**resp_body)
 
-        return checked_resp.model_dump()
+        result = checked_resp.model_dump()
+        result["headers"] = dict(resp.headers)
+        return result
 
 
 class DataflowClient(BaseAuthClient):

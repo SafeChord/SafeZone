@@ -42,9 +42,7 @@ time-server_PATH              = ./toolkit/time-server
 # -------------------------
 # 3. smoke test and its properties
 # -------------------------
-SMOKE_COMPOSE_FILE      = docker-compose/smoke-test/release_0.2.0.yml
-SMOKE_TEST_PHASE2_CSV   = data/smoke-test/smoke-test-phase-2.csv
-SMOKE_TEST_PHASE3_CSV   = data/smoke-test/smoke-test-phase-3.csv
+SMOKE_COMPOSE_FILE      = ./docker-compose/local-compose-all.yml
 
 # -------------------------
 # 3. Pattern Rule for build/test
@@ -121,17 +119,12 @@ push-all: $(addprefix push-, $(SERVICE_NAMES)) $(addprefix push-, $(TOOL_NAMES))
 # -------------------------
 smoke-test:
 	@echo "====== Running: End-to-End Smoke Test ======"
-	@echo "Using Compose File: $(SMOKE_COMPOSE_FILE)"
-
-	@COMPOSE_FILE=$(SMOKE_COMPOSE_FILE) \
-		TEST_CASE_FILE_PHASE2=$(SMOKE_TEST_PHASE2_CSV) \
-		TEST_CASE_FILE_PHASE3=$(SMOKE_TEST_PHASE3_CSV) \
-		VERSION=$(VERSION) \
+	@COMPOSE_FILE=$(SMOKE_COMPOSE_FILE) VERSION=$(VERSION) \
 		bash scripts/smoke-test.sh
 	@echo "====== Done: Smoke Test ======"
 
 # -------------------------
-# 6. Local CI 
+# 6. Local CI
 # ------------------------- 
 local-ci: 
 	act -W .github/workflows/smoke-test.local.yml
@@ -139,7 +132,27 @@ local-ci:
 	@tput cnorm
 
 # -------------------------
-# 7. Help
+# 7. Local Development Environment
+# -------------------------
+dev-up:
+	@echo "====== Starting Local Dev Environment ======"
+	@COMPOSE_FILE=$(SMOKE_COMPOSE_FILE) VERSION=latest \
+		bash scripts/dev-up.sh
+
+dev-down:
+	@echo "====== Stopping Local Dev Environment ======"
+	@COMPOSE_FILE=$(SMOKE_COMPOSE_FILE) VERSION=latest \
+		bash scripts/dev-down.sh
+
+dev-restart: dev-down dev-up
+	@echo "====== Environment Restarted ======"
+
+dev-logs:
+	@echo "====== Following Logs (Ctrl+C to exit) ======"
+	@docker compose -f $(SMOKE_COMPOSE_FILE) logs -f
+
+# -------------------------
+# 8. Help
 # -------------------------
 help:
 	@echo "Available targets:"
@@ -155,3 +168,7 @@ help:
 	@echo "  local-ci-compose     Run local CI with compose job"
 	@echo "  local-ci-down        Bring down the local CI environment"
 	@echo "  help                 Show this help message"
+	@echo "  dev-up               Start the local development environment"
+	@echo "  dev-down             Stop the local development environment"
+	@echo "  dev-restart          Restart the local development environment"
+	@echo "  dev-logs             Follow logs of the local development environment"

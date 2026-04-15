@@ -32,10 +32,14 @@ def main(
     output_format: str = typer.Option(
         "rich", "--output", "-o", help="Set the output format."
     ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Include HTTP headers in output."
+    ),
 ):
     # set context
     global_context.set("trace_id", str(uuid.uuid4()))
     global_context.set("output_format", output_format)
+    global_context.set("verbose", verbose)
 
     # setup logger
     if debug:
@@ -79,9 +83,11 @@ def init(
 
 @db_app.command()
 @command_handler("db.clear")
-def clear():
+def clear(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+):
     """Clear the covid data in the database."""
-    if not typer.confirm("Are you sure you want to clear the database?"):
+    if not yes and not typer.confirm("Are you sure you want to clear the database?"):
         rich.print("Aborted.")
         raise typer.Abort()
 

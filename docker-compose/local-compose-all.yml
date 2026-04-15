@@ -80,7 +80,7 @@ services:
   cli-relay:
     image: safezone-cli-relay:${VERSION}
     env_file:
-      - ../../.env.secret
+      - ../.env.secret
     environment:
       - ENVIRONMENT=DEV
       - DB_URL=postgresql://postgres:password@db:5432/safezone
@@ -108,7 +108,7 @@ services:
   cli-daemon:
     image: safezone-cli-command:${VERSION}
     env_file:
-      - ../../.env.secret
+      - ../.env.secret
     environment:
       - RELAY_URL=http://cli-relay:8000
       - RELAY_TIMEOUT=3600
@@ -118,7 +118,7 @@ services:
   data-ingestor:
     image: safezone-data-ingestor:${VERSION}
     env_file:
-      - ../../services/data-ingestor/.env.example
+      - ../services/data-ingestor/.env.example
     environment:
       - ENVIRONMENT=DEV
       - KAFKA_BOOTSTRAP=kafka:9092
@@ -130,9 +130,9 @@ services:
   pandemic-simulator:
     image: safezone-pandemic-simulator:${VERSION}
     volumes:
-      - ../../data/smoke-test:/data
+      - ../data/smoke-test:/data
     env_file:
-      - ../../services/pandemic-simulator/.env.example
+      - ../services/pandemic-simulator/.env.example
     environment:
       - ENVIRONMENT=DEV
       - INGESTOR_URL=http://data-ingestor:8000
@@ -144,7 +144,7 @@ services:
   worker-golang:
     image: safezone-worker:${VERSION}
     env_file:
-      - ../../services/worker-golang/.env.example
+      - ../services/worker-golang/.env.example
     environment:
       - ENVIRONMENT=STAGING
       - BATCH_SIZE=100
@@ -160,7 +160,7 @@ services:
   analytics-api:
     image: safezone-analytics-api:${VERSION}
     env_file:
-      - ../../services/analytics-api/.env.example
+      - ../services/analytics-api/.env.example
     environment:
       - ENVIRONMENT=DEV
       - DB_URL=postgresql://postgres:password@db:5432/safezone
@@ -184,7 +184,7 @@ services:
     ports:
       - "8080:8080"
     env_file:
-      - ../../services/dashboard/.env.example
+      - ../services/dashboard/.env.example
     environment:
       - ENVIRONMENT=DEV
       - ANALYTICS_API_URL=http://analytics-api:8000

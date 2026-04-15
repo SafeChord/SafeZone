@@ -18,7 +18,10 @@ def command_handler(command_name: str):
             try:
                 # call the client and get the response
                 response_data = func(*args, **kwargs)
-                
+
+                # separate headers from response body
+                headers = response_data.pop("headers", {})
+
                 task = {
                     "task": {
                         "name": command_name,
@@ -26,6 +29,11 @@ def command_handler(command_name: str):
                     },
                     "response": response_data,
                 }
+
+                # include headers only when verbose is enabled
+                if global_context.get("verbose"):
+                    task["headers"] = headers
+
                 Presenter(output_format).render(task)
 
             except Exception as e:
