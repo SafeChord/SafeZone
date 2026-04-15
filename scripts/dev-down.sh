@@ -11,7 +11,7 @@
 source "$(dirname "$0")/lib/common.sh"
 
 # Find the compose file in the parent directory structure
-DEFAULT_COMPOSE_FILE=$(dirname "$0")/../docker-compose/smoke-test/release_0.2.0.yml
+DEFAULT_COMPOSE_FILE=$(dirname "$0")/../docker-compose/local-compose-all.yml
 COMPOSE_FILE=${COMPOSE_FILE:-$DEFAULT_COMPOSE_FILE}
 
 if [ ! -f "$COMPOSE_FILE" ]; then

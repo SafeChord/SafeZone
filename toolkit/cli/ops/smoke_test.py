@@ -104,15 +104,32 @@ def run_flow(csv_path, max_retries, interval):
 
         print(f"  [{i}/{total}] {command}")
 
-        output = run_command(command, max_retries, interval)
-        if output is None:
-            print(f"  FAILED — command returned no output", file=sys.stderr)
-            return False
+        # Built-in directives
+        if command.startswith("sleep "):
+            seconds = float(command.split()[1])
+            print(f"  WAIT — sleeping {seconds}s")
+            time.sleep(seconds)
+            continue
 
-        actual = resolve_jq_path(output, jq_path)
-        if not coerce_and_compare(actual, expected):
-            print(f"  FAILED — {jq_path}: expected '{expected}', got '{actual}'", file=sys.stderr)
-            return False
+        # Retry loop: command may succeed but return stale data
+        # (e.g. cache not yet invalidated), so retry assertion too.
+        for attempt in range(1, max_retries + 1):
+            output = run_command(command, 1, interval)
+            if output is None:
+                if attempt < max_retries:
+                    time.sleep(interval)
+                    continue
+                print(f"  FAILED — command returned no output", file=sys.stderr)
+                return False
+
+            actual = resolve_jq_path(output, jq_path)
+            if coerce_and_compare(actual, expected):
+                break
+            if attempt < max_retries:
+                time.sleep(interval)
+            else:
+                print(f"  FAILED — {jq_path}: expected '{expected}', got '{actual}'", file=sys.stderr)
+                return False
 
         print(f"  PASSED — {jq_path} = {actual}")
 
@@ -124,7 +141,7 @@ def cleanup():
     """Teardown: clean smoke test data from DB."""
     print("\n--- Cleanup: clearing test data ---")
     result = subprocess.run(
-        "szcli -o json db clear", shell=True, capture_output=True, text=True
+        "szcli -o json db clear --yes", shell=True, capture_output=True, text=True
     )
     if result.returncode == 0:
         print("  Cleanup succeeded.")

@@ -83,9 +83,11 @@ def init(
 
 @db_app.command()
 @command_handler("db.clear")
-def clear():
+def clear(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+):
     """Clear the covid data in the database."""
-    if not typer.confirm("Are you sure you want to clear the database?"):
+    if not yes and not typer.confirm("Are you sure you want to clear the database?"):
         rich.print("Aborted.")
         raise typer.Abort()
 
