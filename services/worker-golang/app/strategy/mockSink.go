@@ -2,37 +2,38 @@ package strategy
 
 import (
 	"context"
+	"sync"
 
-	"go.uber.org/zap"
-	"safezone.service.worker-golang/app/pkg/logger"
 	"safezone.service.worker-golang/app/schema"
 )
 
+// MockSink captures Flush calls for test assertions.
+// Set FlushError to inject errors.
 type MockSink struct {
-	Logger *logger.ContextLogger
+	mu         sync.Mutex
+	Flushed    [][]schema.CovidEvent
+	FlushError error
 }
 
 func (m *MockSink) Flush(ctx context.Context, buffer *[]schema.CovidEvent) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		for _, evt := range *buffer {
-			m.Logger.Debug(ctx, "Flushing event",
-				zap.String("event_type", evt.EventType),
-				zap.String("trace_id", evt.TraceID),
-				zap.String("date", evt.Payload.Date),
-				zap.String("city", evt.Payload.City),
-				zap.String("region", evt.Payload.Region),
-				zap.Int("cases", evt.Payload.Cases))
-		}
-		// clear the buffer after flushing
-		*buffer = (*buffer)[:0]
-		return nil
+	if m.FlushError != nil {
+		return m.FlushError
 	}
+	snapshot := make([]schema.CovidEvent, len(*buffer))
+	copy(snapshot, *buffer)
+	m.mu.Lock()
+	m.Flushed = append(m.Flushed, snapshot)
+	m.mu.Unlock()
+	*buffer = (*buffer)[:0]
+	return nil
+}
+
+func (m *MockSink) FlushedCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.Flushed)
 }
 
 func (m *MockSink) Close(ctx context.Context) error {
-	m.Logger.Info(ctx, "MockSink closed")
 	return nil
 }

@@ -5,44 +5,25 @@ import (
 	"github.com/jmoiron/sqlx"
 	"safezone.service.worker-golang/app/adapter"
 	"safezone.service.worker-golang/app/config"
-	"safezone.service.worker-golang/app/pkg/cache"
+	cachepkg "safezone.service.worker-golang/app/pkg/cache"
 	"safezone.service.worker-golang/app/pkg/logger"
 	"safezone.service.worker-golang/app/schema"
 	"safezone.service.worker-golang/app/strategy"
 )
 
-type WorkerFactory struct {
-	Logger *logger.ContextLogger
-	Config *config.Config
-}
-
-func (f *WorkerFactory) CreateWorker(id int) *Worker {
-	var db *sqlx.DB
-	var cache *cache.Cache
-	var src adapter.EventSource
-	var validator *schema.CovidValidator
-	var sink strategy.EventSink
-
-	switch f.Config.Environment {
-	case "TEST":
-		src = &adapter.MockSource{Count: 10, Logger: f.Logger}
-		sink = &strategy.MockSink{Logger: f.Logger}
-	default:
-		db = sqlx.MustConnect("pgx", f.Config.DBUrl)
-		cache = cache.NewCache(db)
-		src = adapter.NewKafkaSource(f.Logger, f.Config.KafkaBroker, f.Config.KafkaGroupID, f.Config.KafkaTopic)
-		validator = schema.NewCovidValidator(f.Logger, cache)
-		sink = strategy.NewDBSink(f.Logger, db, cache)
-	}
-
+// NewWorker creates a production Worker wired to Kafka and PostgreSQL.
+// For testing, construct Worker directly with mock Source/Sink.
+func NewWorker(id int, cfg *config.Config, log *logger.ContextLogger) *Worker {
+	db := sqlx.MustConnect("pgx", cfg.DBUrl)
+	cache := cachepkg.NewCache(db)
 	return &Worker{
 		DB:        db,
 		Cache:     cache,
-		Source:    src,
-		Validator: validator,
-		Sink:      sink,
-		Config:    f.Config,
-		Logger:    f.Logger,
+		Source:    adapter.NewKafkaSource(log, cfg.KafkaBroker, cfg.KafkaGroupID, cfg.KafkaTopic),
+		Validator: schema.NewCovidValidator(log, cache),
+		Sink:      strategy.NewDBSink(log, db, cache),
+		Config:    cfg,
+		Logger:    log,
 		ID:        id,
 	}
 }

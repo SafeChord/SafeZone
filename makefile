@@ -70,10 +70,12 @@ push-%:
 	@IMAGE_NAME=$($*_IMAGE_NAME) IMAGE_TAG=$(VERSION) bash scripts/push-image.sh
 	@echo "====== Done: $* ======"
 
-# special case for worker-golang
+# special case for worker-golang (Go: build test image from source, not base binary)
 test-worker-golang:
-	@echo "====== Testing worker: golang ======"
-	@echo "Not implemented yet, skipping..."
+	@echo "====== Testing: worker-golang ======"
+	@docker buildx build -t safezone-worker:$(VERSION)_test -f services/worker-golang/Dockerfile.test .
+	@docker run --rm safezone-worker:$(VERSION)_test
+	@docker rmi safezone-worker:$(VERSION)_test || true
 	@echo "====== Done: worker-golang ======"
 
 # special case for data-ingestor (only integration-test)

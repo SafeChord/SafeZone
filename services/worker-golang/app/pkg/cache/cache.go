@@ -15,7 +15,7 @@ func DebugString(label, s string) {
 	fmt.Printf("%s : [%s] HEX: [% x]\n", label, s, []byte(s))
 }
 
-func (c *Cache) NewCache(db *sqlx.DB) *Cache {
+func NewCache(db *sqlx.DB) *Cache {
 	cityRows, _ := db.Queryx("SELECT id, name FROM cities")
 	cityMap := make(map[string]int)
 	for cityRows.Next() {
