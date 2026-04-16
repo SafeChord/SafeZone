@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	cfx, err := config.Load()
+	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: Failed to load configuration: %v\n", err)
 		os.Exit(1)
@@ -21,21 +21,15 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	logger := logger.NewContextLogger(cfx.ServiceName, cfx.ServiceVersion, cfx.Environment)
+	log := logger.NewContextLogger(cfg.ServiceName, cfg.ServiceVersion, cfg.Environment)
+	log.Info(ctx, "Worker-golang service started")
 
-	logger.Info(ctx, "Worker-golang service started")
-
-	workers := make([]*service.Worker, 0, cfx.WorkerCount)
-
-	factory := &service.WorkerFactory{Logger: logger, Config: cfx}
-	for i := 0; i < cfx.WorkerCount; i++ {
-		workers = append(workers, factory.CreateWorker(i))
+	workers := make([]*service.Worker, 0, cfg.WorkerCount)
+	for i := 0; i < cfg.WorkerCount; i++ {
+		workers = append(workers, service.NewWorker(i, cfg, log))
 	}
 
-	orchestrator := &service.Orchestrator{
-		Workers: workers,
-	}
-	orchestrator.RunParallel(ctx, cfx.ParallelN)
+	service.RunWorkers(ctx, workers, cfg.ParallelN)
 
-	logger.Info(ctx, "Worker-golang service completed")
+	log.Info(ctx, "Worker-golang service completed")
 }

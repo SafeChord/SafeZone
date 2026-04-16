@@ -5,17 +5,23 @@ import (
 	"regexp"
 
 	"go.uber.org/zap"
-	"safezone.service.worker-golang/app/pkg/cache"
 	"safezone.service.worker-golang/app/pkg/logger"
 )
+
+// CacheReader is the read-only interface CovidValidator needs for city/region lookups.
+// *cache.Cache satisfies this interface.
+type CacheReader interface {
+	GetCityID(city string) int
+	GetRegionID(cityID int, region string) int
+}
 
 type CovidValidator struct {
 	Logger      *logger.ContextLogger
 	datePattern *regexp.Regexp // YYYY-MM-DD 格式
-	cache       *cache.Cache
+	cache       CacheReader
 }
 
-func NewCovidValidator(logger *logger.ContextLogger, cache *cache.Cache) *CovidValidator {
+func NewCovidValidator(logger *logger.ContextLogger, cache CacheReader) *CovidValidator {
 	return &CovidValidator{
 		Logger:      logger,
 		datePattern: regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`),

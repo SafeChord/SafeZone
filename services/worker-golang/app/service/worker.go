@@ -44,11 +44,9 @@ func (w *Worker) Run(ctx context.Context) error {
 	}()
 
 	for {
-
 		readCtx, cancel := context.WithTimeout(ctx, w.Config.FlushInterval)
-		defer cancel()
-
 		event, err := w.Source.GetEvent(readCtx)
+		cancel()
 
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -57,7 +55,6 @@ func (w *Worker) Run(ctx context.Context) error {
 				}
 				// timeout reached, flush if there are events in the buffer
 				w.Sink.Flush(ctx, &buffer)
-
 			} else if errors.Is(err, context.Canceled) {
 				w.Logger.Info(ctx, "Get context canceled, stopping worker",
 					zap.String("event", "context canceled"))
@@ -66,38 +63,26 @@ func (w *Worker) Run(ctx context.Context) error {
 				w.Logger.Error(ctx, "Failed to get event from source", zap.Error(err))
 				return err
 			}
-		} else {
-			// if the event can't pass validation, skip it
-			// future: we add the bad event to a dead-letter queue
-			if w.Validator != nil && !w.Validator.Validate(ctx, *event) {
-				w.Logger.Warn(ctx, "An event validation failed, skipping event",
-					zap.String("event", "Event validation failed"))
-				continue
-			}
-			// if the event is valid, add trace to the context for logging
-			ctx = context.WithValue(ctx, w.Logger.TraceIDKey, event.TraceID)
-
-			w.Logger.Info(ctx, "Received event from source",
-				zap.String("event", "Event received"))
-
-			buffer = append(buffer, *event)
+			continue
 		}
-		// stop timer during flushing
-		cancel()
+
+		// if the event can't pass validation, skip it
+		// future: we add the bad event to a dead-letter queue
+		if w.Validator != nil && !w.Validator.Validate(ctx, *event) {
+			w.Logger.Warn(ctx, "An event validation failed, skipping event",
+				zap.String("event", "Event validation failed"))
+			continue
+		}
+		// if the event is valid, add trace to the context for logging
+		ctx = context.WithValue(ctx, w.Logger.TraceIDKey, event.TraceID)
+		w.Logger.Info(ctx, "Received event from source",
+			zap.String("event", "Event received"))
+		buffer = append(buffer, *event)
 
 		if len(buffer) >= w.Config.BatchSize {
-
-			w.Sink.Flush(ctx, &buffer)
-
-			if err != nil {
-				if errors.Is(err, context.Canceled) {
-					w.Logger.Info(ctx, "Get context canceled, stopping worker",
-						zap.String("event", "context canceled"))
-					return nil
-				} else {
-					w.Logger.Error(ctx, "Failed to flush events", zap.Error(err))
-					return err
-				}
+			if err := w.Sink.Flush(ctx, &buffer); err != nil {
+				w.Logger.Error(ctx, "Failed to flush events", zap.Error(err))
+				return err
 			}
 		}
 	}

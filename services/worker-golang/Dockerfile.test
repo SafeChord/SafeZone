@@ -1,0 +1,6 @@
+FROM golang:1.24-bookworm
+WORKDIR /module
+COPY services/worker-golang/go.mod services/worker-golang/go.sum /module/
+RUN go mod download
+COPY services/worker-golang/app /module/app
+CMD ["go", "test", "./..."]
