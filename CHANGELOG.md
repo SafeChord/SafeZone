@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.0] - 2026-04-19
+
+This milestone release, titled "Tooling & Portability", focuses on decoupling the testing infrastructure from the host environment, enhancing protocol-level observability, and hardening the core asynchronous processing engine. It establishes a portable "Lab Environment" for the next phases of architectural evolution.
+
+### Added
+
+- **Container-Native Assertions (#31, #32)**: Introduced a modular, CSV-driven assertion engine (`smoke_test.py`) running within a dedicated Ops container. This replaces host-side dependencies (like jq/bash) with Python-native logic, ensuring identical test behavior across Local, CI, and K8s environments.
+- **Protocol-Level Observability (#29, #30)**: Implemented `X-Cache-Status` header exposure in the `Analytics API` and forwarded it through the `cli-relay`. This allows real-time, non-invasive monitoring of cache HIT/MISS behavior via the CLI.
+- **Midnight Sync for Time Server**: Refactored the mock time calculation logic to align `mock_update_time` with physical midnight (00:00:00). This ensures the simulated date rolls over consistently with physical time, preventing drift in daily simulation cronjobs.
+
+### Changed
+
+- **Go Worker Hardening (#17)**: Performed a deep refactor of the Go Worker to implement a cleaner Dependency Injection (DI) pattern, address potential memory behavior issues, and significantly increase unit test coverage.
+- **CI/CD Pipeline v2**: Upgraded the `smoke-test.yml` workflow to utilize the new container-native runner, improving the reliability and reproducibility of PR validation.
+- **CLI Relay Logic**: Enhanced the relay service to dynamically forward custom headers from downstream microservices to the CLI client.
+
+### Fixed
+
+- **Time Server Drift**: Fixed a bug where the simulation date rollover was tied to the service start/set time rather than a natural day boundary.
+
 ## [0.2.1] - 2025-09-12
 
 This is a critical stability and modernization patch for the v0.2.x series. It resolves a fundamental compatibility issue that prevented the successful deployment of the asynchronous architecture on a modern, KRaft-based Kafka infrastructure. This release ensures that the core features introduced in v0.2.0 are robust, reliable, and production-ready.
