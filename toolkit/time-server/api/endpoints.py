@@ -36,7 +36,7 @@ def get_mock_config():
         config = {
             "mock": "False",
             "mock_date": date.today().strftime("%Y-%m-%d"),
-            "mock_update_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "mock_update_time": datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M:%S"),
             "acceleration": "1",
             "launch_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
@@ -115,7 +115,7 @@ async def set_mock_config(
             r.hset(
                 REDIS_PATH,
                 "mock_update_time",
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M:%S"),
             )
             r.hset(REDIS_PATH, "acceleration", "1")
         else:
@@ -125,7 +125,7 @@ async def set_mock_config(
                 r.hset(
                     REDIS_PATH,
                     "mock_update_time",
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M:%S"),
                 )
             if acceleration:
                 r.hset(REDIS_PATH, "acceleration", acceleration)

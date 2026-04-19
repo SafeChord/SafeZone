@@ -6,8 +6,8 @@ IMAGE_REPO="ghcr.io/safezone"
 IMAGE_NAME="safezone-cli-command"
 INSTANCE_NAME="safezone-cli-daemon"
 # ENV variables for the daemon
-# RELAY_URL="http://172.17.0.1:8000" # relay URL for docker compose testing
-RELAY_URL="https://preview-safezone.omh.idv.tw/cli" # relay URL for k3s
+RELAY_URL="http://172.17.0.1:8000" # relay URL for docker compose testing
+# RELAY_URL="https://preview-safezone.omh.idv.tw/cli" # relay URL for k3s
 RELAY_TIMEOUT=3600
 TOKEN_FILE="/app/.temp_token.json"
 # --------------------------------
