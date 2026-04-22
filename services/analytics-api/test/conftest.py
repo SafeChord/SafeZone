@@ -123,6 +123,10 @@ def client_with_cache(mock_cache):
     """TestClient with mock Redis injected via dependency_overrides.
 
     cache_client and cache_version are injected via Depends — no app.state needed.
+
+    NOTE: module-scoped for performance. If future tests need isolated mock
+    state per test (e.g. simulating setex failure), consider switching to
+    scope="function" or resetting mock state explicitly in the test body.
     """
     from fastapi.testclient import TestClient
     from main import create_app
@@ -141,7 +145,8 @@ def client_broken():
     """TestClient with a DB session override that always raises.
 
     Verifies global_exception_handler catches unexpected errors and returns 500.
-    Requires api/dependencies.py to exist — RED until Phase 2.
+
+    NOTE: module-scoped — same caveat as client_with_cache above.
     """
     from fastapi.testclient import TestClient
     from main import create_app
