@@ -8,7 +8,7 @@ import functools
 import redis.asyncio as aioredis  # type: ignore
 
 from utils.pydantic_model.response import AnalyticsAPIResponse
-from utils.context import cache_status_var
+from core.context import cache_status_var
 from core.settings import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD
 from core.settings import CACHE_HOST, CACHE_PORT, CACHE_DB, CACHE_PASSWORD
 from core.settings import POLL_CACHE_VERSION_INTERVAL
@@ -68,6 +68,12 @@ def generate_cache_key(cache_version: str, endpoint: str, params_model):
 
 
 def redis_cache(endpoint, ttl=86400):
+    # Per-endpoint lock dict — prevents cache stampede within a single process.
+    # Keys are cache_key strings; unbounded growth is acceptable given analytics
+    # key space is bounded (date × interval × region).
+    # TODO: replace with Redis NX distributed lock when scaling to multi-replica.
+    _locks: dict[str, asyncio.Lock] = {}
+
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
@@ -82,20 +88,33 @@ def redis_cache(endpoint, ttl=86400):
 
             cache_key = generate_cache_key(cache_version, endpoint, params)
             logger.debug(f"Generated cache key: {cache_key}")
+
+            # Fast path: check cache without lock (HIT avoids serialization)
             cached = await cache_client.get(cache_key)
             if cached:
                 logger.debug(f"Cache hit: {cache_key}")
                 cache_status_var.set("HIT")
                 return AnalyticsAPIResponse.model_validate_json(cached)
 
-            logger.debug(f"Cache miss: {cache_key}")
-            cache_status_var.set("MISS")
-            resp = await func(*args, **kwargs)
-            if getattr(resp, "success", True) and isinstance(resp, AnalyticsAPIResponse):
-                await cache_client.setex(
-                    cache_key, ttl, resp.model_dump_json(exclude="timestamp")
-                )
-            return resp
+            # Slow path: acquire per-key lock to prevent stampede on MISS
+            if cache_key not in _locks:
+                _locks[cache_key] = asyncio.Lock()
+            async with _locks[cache_key]:
+                # Double-check: another coroutine may have written cache while we waited
+                cached = await cache_client.get(cache_key)
+                if cached:
+                    logger.debug(f"Cache hit (post-lock): {cache_key}")
+                    cache_status_var.set("HIT")
+                    return AnalyticsAPIResponse.model_validate_json(cached)
+
+                logger.debug(f"Cache miss: {cache_key}")
+                cache_status_var.set("MISS")
+                resp = await func(*args, **kwargs)
+                if getattr(resp, "success", True) and isinstance(resp, AnalyticsAPIResponse):
+                    await cache_client.setex(
+                        cache_key, ttl, resp.model_dump_json(exclude="timestamp")
+                    )
+                return resp
 
         return wrapper
 

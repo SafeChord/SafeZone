@@ -10,7 +10,8 @@ from sqlalchemy import create_engine  # type: ignore
 from sqlalchemy.orm import sessionmaker  # type: ignore
 
 from utils.logging.baselogger import setup_logger
-from utils.context import trace_id_var, cache_status_var
+from utils.context import trace_id_var
+from core.context import cache_status_var
 
 from api.endpoints import router
 from core.settings import SERVER_IP, SERVER_PORT, SERVICE_NAME, SERVICE_VERSION
