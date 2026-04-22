@@ -65,7 +65,29 @@ def test_cache_hit_returns_cached_skips_handler(client_with_cache, mock_cache):
     response = client_with_cache.get("/cases/national", params={"now": "2023-03-26", "interval": 7})
     assert response.status_code == 200
     assert response.json()["data"]["aggregated_cases"] == 99999  # sentinel: came from cache
+    assert response.headers.get("X-Cache-Status") == "HIT"
     mock_cache.setex.assert_not_called()
+
+
+def test_trace_id_auto_generated(client):
+    """No X-Trace-ID in request → middleware generates a UUID and echoes it in response."""
+    import re
+    UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+    response = client.get("/cases/national", params={"now": "2023-03-26", "interval": 7})
+    trace_id = response.headers.get("X-Trace-ID")
+    assert trace_id is not None
+    assert UUID_RE.match(trace_id), f"Expected UUID, got: {trace_id}"
+
+
+def test_trace_id_propagated(client):
+    """X-Trace-ID provided in request → same value echoed in response."""
+    custom_trace_id = "test-trace-abc-123"
+    response = client.get(
+        "/cases/national",
+        params={"now": "2023-03-26", "interval": 7},
+        headers={"X-Trace-ID": custom_trace_id},
+    )
+    assert response.headers.get("X-Trace-ID") == custom_trace_id
 
 
 def test_unexpected_error_returns_500(client_broken):
