@@ -1,0 +1,231 @@
+[
+  {
+    "test_describes": "Request to /cases/region in correct scenario",
+    "endpoint": "/cases/region",
+    "params": {
+      "city": "台北市",
+      "region": "信義區",
+      "now": "2023-03-26",
+      "interval": 7
+    },
+    "expected": {
+      "status_code": 200,
+      "response": {
+        "data": {
+          "start_date": "2023-03-20",
+          "end_date": "2023-03-26",
+          "city": "台北市",
+          "region": "信義區",
+          "aggregated_cases": 590
+        },
+        "message": "Data returned successfully",
+        "detail": "Data returned successfully for dates 2023-03-20 ~ 2023-03-26.",
+        "success": true
+      }
+    }
+  },
+  {
+    "test_describes": "Request to /cases/region with ratio in correct scenario",
+    "endpoint": "/cases/region",
+    "params": {
+      "city": "台北市",
+      "region": "信義區",
+      "now": "2023-03-26",
+      "interval": 7,
+      "ratio": true
+    },
+    "expected": {
+      "status_code": 200,
+      "response": {
+        "data": {
+          "start_date": "2023-03-20",
+          "end_date": "2023-03-26",
+          "city": "台北市",
+          "region": "信義區",
+          "cases_population_ratio": 28.53564
+        },
+        "message": "Data returned successfully",
+        "detail": "Data returned successfully for dates 2023-03-20 ~ 2023-03-26.",
+        "success": true
+      }
+    }
+  },
+  {
+    "test_describes": "Request to /cases/region with invalid city",
+    "endpoint": "/cases/region",
+    "params": {
+      "city": "上海市",
+      "region": "信義區",
+      "now": "2023-03-26",
+      "interval": 7
+    },
+    "expected": {
+      "status_code": 422,
+      "response": {
+        "success": false,
+        "message": "Invalid city name.",
+        "errors": {
+          "field": "city",
+          "summary": "Invalid city name",
+          "detail": "The city '上海市' is not a valid Taiwan city."
+        }
+      }
+    }
+  },
+  {
+    "test_describes": "Request to /cases/region with region not belonging to city",
+    "endpoint": "/cases/region",
+    "params": {
+      "city": "台北市",
+      "region": "左營區",
+      "now": "2023-03-26",
+      "interval": 7
+    },
+    "expected": {
+      "status_code": 422,
+      "response": {
+        "success": false,
+        "message": "Invalid region name.",
+        "errors": {
+          "field": "region",
+          "summary": "Invalid region name",
+          "detail": "The region '左營區' does not belong to the city '台北市'."
+        }
+      }
+    }
+  },
+  {
+    "test_describes": "Request to /cases/region no data found",
+    "endpoint": "/cases/region",
+    "params": {
+      "city": "台北市",
+      "region": "信義區",
+      "now": "2025-03-26",
+      "interval": 7
+    },
+    "expected": {
+      "status_code": 200,
+      "response": {
+        "data": {
+          "start_date": "2025-03-20",
+          "end_date": "2025-03-26",
+          "city": "台北市",
+          "region": "信義區",
+          "aggregated_cases": 0
+        },
+        "message": "Data returned successfully",
+        "detail": "Data returned successfully for dates 2025-03-20 ~ 2025-03-26.",
+        "success": true
+      }
+    }
+  },
+  {
+    "test_describes": "Request to /cases/city in correct scenario",
+    "endpoint": "/cases/city",
+    "params": {
+      "city": "台北市",
+      "now": "2023-03-26",
+      "interval": 7
+    },
+    "expected": {
+      "status_code": 200,
+      "response": {
+        "data": {
+          "start_date": "2023-03-20",
+          "end_date": "2023-03-26",
+          "city": "台北市",
+          "aggregated_cases": 590
+        },
+        "message": "Data returned successfully",
+        "detail": "Data returned successfully for dates 2023-03-20 ~ 2023-03-26.",
+        "success": true
+      }
+    }
+  },
+  {
+    "test_describes": "Request to /cases/city with invalid city",
+    "endpoint": "/cases/city",
+    "params": {
+      "city": "上海市",
+      "now": "2023-03-26",
+      "interval": 7
+    },
+    "expected": {
+      "status_code": 422,
+      "response": {
+        "success": false,
+        "message": "Invalid city name.",
+        "errors": {
+          "field": "city",
+          "summary": "Invalid city name",
+          "detail": "The city '上海市' is not a valid Taiwan city."
+        }
+      }
+    }
+  },
+  {
+    "test_describes": "Request to /cases/city with invalid now value",
+    "endpoint": "/cases/city",
+    "params": {
+      "city": "台北市",
+      "now": "2025-03-26",
+      "interval": 7
+    },
+    "expected": {
+      "status_code": 200,
+      "response": {
+        "data": {
+          "start_date": "2025-03-20",
+          "end_date": "2025-03-26",
+          "city": "台北市",
+          "aggregated_cases": 0
+        },
+        "message": "Data returned successfully",
+        "detail": "Data returned successfully for dates 2025-03-20 ~ 2025-03-26.",
+        "success": true
+      }
+    }
+  },
+  {
+    "test_describes": "Request to /cases/national in correct scenario",
+    "endpoint": "/cases/national",
+    "params": {
+      "now": "2023-03-26",
+      "interval": 7
+    },
+    "expected": {
+      "status_code": 200,
+      "response": {
+        "data": {
+          "start_date": "2023-03-20",
+          "end_date": "2023-03-26",
+          "aggregated_cases": 17792
+        },
+        "message": "Data returned successfully",
+        "detail": "Data returned successfully for dates 2023-03-20 ~ 2023-03-26.",
+        "success": true
+      }
+    }
+  },
+  {
+    "test_describes": "Request to /cases/national with invalid now value",
+    "endpoint": "/cases/national",
+    "params": {
+      "now": "2025-03-26",
+      "interval": 7
+    },
+    "expected": {
+      "status_code": 200,
+      "response": {
+        "data": {
+          "start_date": "2025-03-20",
+          "end_date": "2025-03-26",
+          "aggregated_cases": 0
+        },
+        "message": "Data returned successfully",
+        "detail": "Data returned successfully for dates 2025-03-20 ~ 2025-03-26.",
+        "success": true
+      }
+    }
+  }
+]

@@ -55,7 +55,7 @@ build-%:
 
 test-%:
 	@echo "====== Testing: $* ======"
-	@IMAGE_NAME=$($*_IMAGE_NAME) IMAGE_TAG=$(VERSION)_test BUILD_PATH=$($*_PATH) \
+	@IMAGE_NAME=$($*_IMAGE_NAME) IMAGE_TAG=$(VERSION)_test BUILD_PATH=$($*_PATH) VERSION=$(VERSION) \
 		bash scripts/unit-test.sh
 	@echo "====== Done: $* ======"
 
