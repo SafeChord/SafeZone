@@ -2,7 +2,7 @@
 import logging
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, Request  # type: ignore
+from fastapi import APIRouter, Depends  # type: ignore
 
 from utils.pydantic_model.request import (
     RegionParameters,
@@ -14,8 +14,15 @@ from utils.pydantic_model.response import (
     AnalyticsAPIResponse,
     HealthResponse,
 )
-from pipeline.orchestrator import handle_query_request
-from config.cache import redis_cache  # decorator for caching
+from api.dependencies import (
+    get_db_session,
+    get_geo_cache,
+    get_populations_cache,
+    get_cache_client,
+    get_cache_version,
+)
+from services.query_service import query_cases
+from core.lifecycle import redis_cache
 
 
 router = APIRouter()
@@ -28,16 +35,19 @@ async def health_check():
 
 
 @router.get("/cases/region", response_model=AnalyticsAPIResponse)
-@redis_cache(endpoint="cases_region", ttl=86400)  # Cache for 1 day
-async def process_data(request: Request, params: RegionParameters = Depends()):
-    """
-    Endpoint to process region-level data requests.
-    """
+@redis_cache(endpoint="cases_region", ttl=86400)
+async def process_region(
+    params: RegionParameters = Depends(),
+    db_session=Depends(get_db_session),
+    geo_cache=Depends(get_geo_cache),
+    populations_cache=Depends(get_populations_cache),
+    cache_client=Depends(get_cache_client),
+    cache_version=Depends(get_cache_version),
+):
     end_date = params.now
     start_date = end_date - timedelta(days=int(params.interval) - 1)
 
     query_params = {
-        # Parameters for querying data
         "start_date": start_date,
         "end_date": end_date,
         "city": params.city,
@@ -49,7 +59,7 @@ async def process_data(request: Request, params: RegionParameters = Depends()):
         extra={"event": "query_region_cases"},
     )
 
-    query_result = handle_query_request(request, query_params)
+    query_result = query_cases(db_session, geo_cache, populations_cache, query_params)
 
     logger.info(
         f"Query region-level result: {query_result}",
@@ -59,19 +69,25 @@ async def process_data(request: Request, params: RegionParameters = Depends()):
     return AnalyticsAPIResponse(
         success=True,
         message="Data returned successfully",
-        detail=f"Data returned successfully for dates {query_result["start_date"]} ~ {query_result["end_date"]}.",
+        detail=f"Data returned successfully for dates {query_result['start_date']} ~ {query_result['end_date']}.",
         data=AnalyticsAPIData(**query_result),
     )
 
 
 @router.get("/cases/city", response_model=AnalyticsAPIResponse)
-@redis_cache(endpoint="cases_city", ttl=86400)  # Cache for 1 day
-async def process_data(request: Request, params: CityParameters = Depends()):
+@redis_cache(endpoint="cases_city", ttl=86400)
+async def process_city(
+    params: CityParameters = Depends(),
+    db_session=Depends(get_db_session),
+    geo_cache=Depends(get_geo_cache),
+    populations_cache=Depends(get_populations_cache),
+    cache_client=Depends(get_cache_client),
+    cache_version=Depends(get_cache_version),
+):
     end_date = params.now
     start_date = end_date - timedelta(days=int(params.interval) - 1)
 
     query_params = {
-        # Parameters for querying data
         "start_date": start_date,
         "end_date": end_date,
         "city": params.city,
@@ -83,7 +99,7 @@ async def process_data(request: Request, params: CityParameters = Depends()):
         extra={"event": "query_city_cases"},
     )
 
-    query_result = handle_query_request(request, query_params)
+    query_result = query_cases(db_session, geo_cache, populations_cache, query_params)
 
     logger.info(
         f"Query city-level result: {query_result}", extra={"event": "query_city_cases"}
@@ -98,13 +114,19 @@ async def process_data(request: Request, params: CityParameters = Depends()):
 
 
 @router.get("/cases/national", response_model=AnalyticsAPIResponse)
-@redis_cache(endpoint="cases_national", ttl=86400)  # Cache for 1 day
-async def process_data(request: Request, params: NationalParameters = Depends()):
+@redis_cache(endpoint="cases_national", ttl=86400)
+async def process_national(
+    params: NationalParameters = Depends(),
+    db_session=Depends(get_db_session),
+    geo_cache=Depends(get_geo_cache),
+    populations_cache=Depends(get_populations_cache),
+    cache_client=Depends(get_cache_client),
+    cache_version=Depends(get_cache_version),
+):
     end_date = params.now
     start_date = end_date - timedelta(days=int(params.interval) - 1)
 
     query_params = {
-        # Parameters for querying data
         "start_date": start_date,
         "end_date": end_date,
     }
@@ -114,7 +136,7 @@ async def process_data(request: Request, params: NationalParameters = Depends())
         extra={"event": "query_national_cases"},
     )
 
-    query_result = handle_query_request(request, query_params)
+    query_result = query_cases(db_session, geo_cache, populations_cache, query_params)
 
     logger.info(
         f"Query national-level result: {query_result}",

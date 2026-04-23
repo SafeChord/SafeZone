@@ -8,10 +8,15 @@ COPY services/analytics-api/requirements.test.txt .
 RUN pip install --no-cache-dir -r requirements.test.txt --root-user-action=ignore
 
 # copy .env file
-COPY services/analytics-api/test/tests /test
 COPY services/analytics-api/.env.example /app/.env
+# copy test suite (conftest, cases, unit, integration)
+COPY services/analytics-api/test/pytest.ini /test/pytest.ini
+COPY services/analytics-api/test/conftest.py /test/conftest.py
+COPY services/analytics-api/test/cases /test/cases
+COPY services/analytics-api/test/unit /test/unit
+COPY services/analytics-api/test/integration /test/integration
+# symlinks: keep generic unit-test.sh paths (/test/unit_test, /test/integration_test) working
+RUN ln -s /test/unit /test/unit_test && ln -s /test/integration /test/integration_test
 # copy test data and pregenerated db
 COPY services/analytics-api/test/data /data
 COPY services/analytics-api/test/db /db
-
-

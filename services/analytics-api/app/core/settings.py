@@ -1,4 +1,4 @@
-# app/config/settings.py
+# app/core/settings.py
 import os
 from dotenv import load_dotenv # type: ignore
 

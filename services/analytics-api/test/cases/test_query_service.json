@@ -28,7 +28,8 @@
       "start_date": "2023-03-19"
     },
     "expected": {
-      "exception": "InvalidTaiwanRegionException"
+      "exception": "InvalidTaiwanRegionException",
+      "exception_detail": "The region '不存在的地區' does not belong to the city '台北市'."
     }
   },
   {
@@ -41,7 +42,8 @@
       "start_date": "2023-03-19"
     },
     "expected": {
-      "exception": "InvalidTaiwanCityException"
+      "exception": "InvalidTaiwanCityException",
+      "exception_detail": "The city '不存在的城市' is not a valid Taiwan city."
     }
   },
   {
@@ -70,7 +72,26 @@
       "start_date": "2023-03-19"
     },
     "expected": {
-      "exception": "InvalidTaiwanCityException"
+      "exception": "InvalidTaiwanCityException",
+      "exception_detail": "The city '不存在的城市' is not a valid Taiwan city."
+    }
+  },
+  {
+    "test_describes": "query city cases with ratio in correct scenario",
+    "component": "query_service_city_test",
+    "params": {
+      "city": "台北市",
+      "end_date": "2023-03-26",
+      "start_date": "2023-03-19",
+      "ratio": true
+    },
+    "expected": {
+      "query_result": {
+        "start_date": "2023-03-19",
+        "end_date": "2023-03-26",
+        "city": "台北市",
+        "cases_population_ratio": 5.90791
+      }
     }
   },
   {

@@ -1,11 +1,11 @@
+# app/services/query_service.py
 import logging
 
-from sqlalchemy import create_engine, select, func  # type: ignore
-from sqlalchemy.orm import sessionmaker  # type: ignore
+from sqlalchemy import select, func  # type: ignore
 
 from utils.db.schema import covid_cases
 from exceptions.custom import InvalidTaiwanCityException, InvalidTaiwanRegionException
-from config.settings import DB_URL
+
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,6 @@ def query_cases_by_region(Session, geo_cache, populations_cache, params):
     )
 
     if "ratio" in params and params["ratio"]:
-        # calculate cases to population ratio
         population = populations_cache[city_id][region_id]
         cases = round(cases * RATIO_FACTOR / population, 5)
 
@@ -130,7 +129,6 @@ def query_cases_national(Session, params):
     )
 
     with Session() as session:
-        #  query cases for the whole country
         query = select(func.sum(covid_cases.c.cases).label("total_cases")).where(
             covid_cases.c.date >= params["start_date"],
             covid_cases.c.date <= params["end_date"],
