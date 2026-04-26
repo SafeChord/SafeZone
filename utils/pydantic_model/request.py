@@ -86,12 +86,10 @@ class IntervalParameters(BaseModel):
     end_date: datetime.date = Field(..., description="End date in 'YYYY-MM-DD' format.")
 
     @model_validator(mode="after")
-    def validate_dates(cls, values):
-        start_date = values.start_date
-        end_date = values.end_date
-        if end_date < start_date:
+    def validate_dates(self):
+        if self.end_date < self.start_date:
             raise ValueError("End date cannot be earlier than start date.")
-        return values
+        return self
 
 
 ## endpoint /simulate/daily
