@@ -9,17 +9,18 @@ from fastapi import FastAPI  # type: ignore
 from utils.logging.baselogger import setup_logger
 from utils.context import trace_id_var
 
-from config.settings import SERVER_IP, SERVER_PORT, SERVICE_NAME, SERVICE_VERSION
-from config.settings import LOG_LEVEL
-from config.kafka import startup_event, shutdown_event
+from core.settings import SERVER_IP, SERVER_PORT, SERVICE_NAME, SERVICE_VERSION
+from core.settings import LOG_LEVEL
+from core.lifecycle import startup_kafka, shutdown_kafka
 from api.endpoints import router
+from exceptions.handlers import register_exception_handlers
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.kafka_producer = await startup_event()
+    app.state.kafka_producer = await startup_kafka()
     yield
-    await shutdown_event(app.state.kafka_producer)
+    await shutdown_kafka(app.state.kafka_producer)
 
 
 def create_app() -> FastAPI:
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.include_router(router)
+    register_exception_handlers(app)
     return app
 
 

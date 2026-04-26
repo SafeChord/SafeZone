@@ -8,5 +8,12 @@ COPY services/data-ingestor/requirements.test.txt .
 # Install dependencies specified in requirements.test.txt
 RUN pip install --no-cache-dir -r requirements.test.txt --root-user-action=ignore
 
-COPY services/data-ingestor/test /test
 COPY services/data-ingestor/.env.example /app/.env
+# copy test suite (conftest, cases, unit, integration)
+COPY services/data-ingestor/test/pytest.ini /test/pytest.ini
+COPY services/data-ingestor/test/conftest.py /test/conftest.py
+COPY services/data-ingestor/test/cases /test/cases
+COPY services/data-ingestor/test/unit /test/unit
+COPY services/data-ingestor/test/integration /test/integration
+# symlinks: keep generic unit-test.sh paths (/test/unit_test, /test/integration_test) working
+RUN ln -s /test/unit /test/unit_test && ln -s /test/integration /test/integration_test
