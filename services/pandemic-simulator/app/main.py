@@ -9,9 +9,9 @@ from utils.logging.baselogger import setup_logger
 from utils.context import trace_id_var
 
 from api.endpoints import router
-from config.settings import SERVER_IP, SERVER_PORT, SERVICE_NAME, SERVICE_VERSION
-from config.settings import LOG_LEVEL
-from exceptions.hanlders import register_exception_handlers
+from core.settings import SERVER_IP, SERVER_PORT, SERVICE_NAME, SERVICE_VERSION
+from core.settings import LOG_LEVEL
+from exceptions.handlers import register_exception_handlers
 
 
 def create_app() -> FastAPI:

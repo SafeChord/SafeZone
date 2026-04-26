@@ -9,7 +9,7 @@ from utils.pydantic_model.request import CovidDataModel
 from utils.context import trace_id_var
 
 from exceptions.custom import ServiceValidationError
-from config.settings import INGESTOR_URL, MAX_CONCURRENT_REQUESTS
+from core.settings import INGESTOR_URL, MAX_CONCURRENT_REQUESTS
 
 
 logger = logging.getLogger(__name__)

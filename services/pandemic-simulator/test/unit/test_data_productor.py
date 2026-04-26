@@ -5,7 +5,7 @@ import logging
 import pytest # type: ignore
 
 from exceptions.custom import EmptyDataError # type: ignore
-from pipeline.data_productor import get_data_by_date, get_data_by_interval # type: ignore
+from services.data_productor import get_data_by_date, get_data_by_interval # type: ignore
 
 
 @pytest.fixture(scope="module")

@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends  # type: ignore
 
 from utils.pydantic_model.request import DailyParameters, IntervalParameters
 from utils.pydantic_model.response import APIResponse, HealthResponse
-from pipeline.orchestrator import handle_request
+from services.orchestrator import handle_request
 
 
 router = APIRouter()

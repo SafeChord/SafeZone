@@ -78,10 +78,11 @@ test-worker-golang:
 	@docker rmi safezone-worker:$(VERSION)_test || true
 	@echo "====== Done: worker-golang ======"
 
-# special case for data-ingestor (only integration-test)
+# special case for data-ingestor (uses generic script now — has unit + integration)
 test-data-ingestor:
 	@echo "====== Testing: data-ingestor ======"
-	@IMAGE_NAME=$(data-ingestor_IMAGE_NAME) IMAGE_TAG=$(VERSION)_test BUILD_PATH=$(data-ingestor_PATH) bash scripts/data-ingestor/unit-test.sh
+	@IMAGE_NAME=$(data-ingestor_IMAGE_NAME) IMAGE_TAG=$(VERSION)_test BUILD_PATH=$(data-ingestor_PATH) VERSION=$(VERSION) \
+		bash scripts/unit-test.sh
 	@echo "====== Done: data-ingestor ======"
 
 # special case for dashboard (only unit-test)
