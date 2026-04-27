@@ -53,7 +53,7 @@ build-%:
 		bash scripts/build-image.sh
 	@echo "====== Done: $* ======"
 
-test-%:
+test-%: build-%
 	@echo "====== Testing: $* ======"
 	@IMAGE_NAME=$($*_IMAGE_NAME) IMAGE_TAG=$(VERSION)_test BUILD_PATH=$($*_PATH) VERSION=$(VERSION) \
 		bash scripts/unit-test.sh
@@ -77,13 +77,6 @@ test-worker-golang:
 	@docker run --rm safezone-worker:$(VERSION)_test
 	@docker rmi safezone-worker:$(VERSION)_test || true
 	@echo "====== Done: worker-golang ======"
-
-# special case for data-ingestor (uses generic script now — has unit + integration)
-test-data-ingestor:
-	@echo "====== Testing: data-ingestor ======"
-	@IMAGE_NAME=$(data-ingestor_IMAGE_NAME) IMAGE_TAG=$(VERSION)_test BUILD_PATH=$(data-ingestor_PATH) VERSION=$(VERSION) \
-		bash scripts/unit-test.sh
-	@echo "====== Done: data-ingestor ======"
 
 # special case for dashboard (only unit-test)
 test-dashboard:
