@@ -64,7 +64,7 @@
         "expected_status_code": 200,
         "expected_response": {
             "status": {"ingestor": "healthy"},
-            "message": "Service is healthy.", 
+            "message": "Service is healthy.",
             "success": true
         }
     }

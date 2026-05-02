@@ -1,9 +1,9 @@
 from aiokafka import AIOKafkaProducer  # type: ignore
 
-from config.settings import KAFKA_BOOTSTRAP
+from core.settings import KAFKA_BOOTSTRAP
 
 
-async def startup_event():
+async def startup_kafka():
     producer = AIOKafkaProducer(
         bootstrap_servers=KAFKA_BOOTSTRAP,
         acks="all",
@@ -15,7 +15,7 @@ async def startup_event():
     return producer
 
 
-async def shutdown_event(producer: AIOKafkaProducer = None):
+async def shutdown_kafka(producer: AIOKafkaProducer = None):
     if producer:
         await producer.stop()
         producer = None

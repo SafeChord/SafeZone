@@ -1,6 +1,6 @@
 import asyncio
-from pipeline.data_productor import get_data_by_date, get_data_by_interval
-from pipeline.data_sender import send_data
+from services.data_productor import get_data_by_date, get_data_by_interval
+from services.data_sender import send_data
 
 
 async def handle_request(start_date, end_date=None):

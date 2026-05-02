@@ -6,7 +6,7 @@ import pytest # type: ignore
 from httpx import Response # type: ignore
 from fastapi.testclient import TestClient # type: ignore
 
-from config.settings import INGESTOR_URL # type: ignore
+from core.settings import INGESTOR_URL # type: ignore
 from main import create_app # type: ignore
 
 client = TestClient(create_app())

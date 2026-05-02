@@ -6,8 +6,8 @@ import respx # type: ignore
 import pytest # type: ignore
 from httpx import Response # type: ignore
 
-from config.settings import INGESTOR_URL # type: ignore    
-from pipeline.data_sender import send_data # type: ignore
+from core.settings import INGESTOR_URL # type: ignore
+from services.data_sender import send_data # type: ignore
 
 @pytest.fixture(scope="module")
 def logger():
