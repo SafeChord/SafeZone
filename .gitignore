@@ -14,3 +14,11 @@ temp/
 # ignore secrets
 *secret*
 .secrets
+
+# Node.js
+node_modules/
+dist/
+tsconfig.tsbuildinfo
+
+# dashboard-v2: GeoJSON copied at dev-time from utils/
+services/dashboard-v2/public/geo/

@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "copy-geo": "mkdir -p public/geo/regions && cp ../../utils/geo_data/boundaries/geo_city.json public/geo/ && cp ../../utils/geo_data/boundaries/regions/*_region.json public/geo/regions/ && cp ../../utils/geo_data/boundaries/accessory/city_code.json public/geo/ && cp ../../utils/geo_data/boundaries/accessory/city_center.json public/geo/",
+    "predev": "npm run copy-geo",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",

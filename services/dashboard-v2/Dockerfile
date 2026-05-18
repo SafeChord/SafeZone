@@ -12,6 +12,10 @@ RUN npm run build
 FROM nginx:1.27-alpine
 
 COPY --from=builder /build/dist /usr/share/nginx/html
+COPY utils/geo_data/boundaries/geo_city.json /usr/share/nginx/html/geo/
+COPY utils/geo_data/boundaries/regions/ /usr/share/nginx/html/geo/regions/
+COPY utils/geo_data/boundaries/accessory/city_code.json /usr/share/nginx/html/geo/
+COPY utils/geo_data/boundaries/accessory/city_center.json /usr/share/nginx/html/geo/
 COPY services/dashboard-v2/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
