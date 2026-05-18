@@ -9,7 +9,7 @@ VERSION ?= latest
 # -------------------------
 # 1. components and their properties
 # -------------------------
-SERVICE_NAMES := data-ingestor pandemic-simulator analytics-api dashboard worker-golang
+SERVICE_NAMES := data-ingestor pandemic-simulator analytics-api dashboard dashboard-v2 worker-golang
 
 data-ingestor_IMAGE_NAME        = safezone-data-ingestor
 data-ingestor_PATH              = ./services/data-ingestor
@@ -22,6 +22,9 @@ analytics-api_PATH            = ./services/analytics-api
 
 dashboard_IMAGE_NAME      = safezone-dashboard
 dashboard_PATH            = ./services/dashboard
+
+dashboard-v2_IMAGE_NAME      = safezone-dashboard-v2
+dashboard-v2_PATH            = ./services/dashboard-v2
 
 worker-golang_IMAGE_NAME      = safezone-worker
 worker-golang_PATH            = ./services/worker-golang
@@ -77,6 +80,13 @@ test-worker-golang:
 	@docker run --rm safezone-worker:$(VERSION)_test
 	@docker rmi safezone-worker:$(VERSION)_test || true
 	@echo "====== Done: worker-golang ======"
+
+# special case for dashboard-v2 (Node/vitest)
+test-dashboard-v2:
+	@echo "====== Testing: dashboard-v2 ======"
+	@IMAGE_NAME=$(dashboard-v2_IMAGE_NAME) IMAGE_TAG=$(VERSION)_test BUILD_PATH=$(dashboard-v2_PATH) VERSION=$(VERSION) \
+		bash scripts/dashboard-v2/unit-test.sh
+	@echo "====== Done: dashboard-v2 ======"
 
 # special case for dashboard (only unit-test)
 test-dashboard:
