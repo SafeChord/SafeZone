@@ -15,7 +15,7 @@ export function TopCitiesChart({ cities, ratio, systemDate }: Props) {
     ? Math.max(...sorted.map((r) => (ratio ? (r.ratio ?? 0) : r.cases)), 1)
     : 1;
 
-  const label = ratio ? "Ratio" : "Cases";
+  const label = ratio ? "per 10K" : "Cases";
 
   // Compute date range for subtitle (7-day window)
   let subtitle = "";

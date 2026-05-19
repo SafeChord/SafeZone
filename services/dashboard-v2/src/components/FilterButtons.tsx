@@ -70,7 +70,7 @@ export function FilterButtons({ interval, ratio, onIntervalChange, onRatioChange
             fontWeight: ratio ? 600 : 400,
           }}
         >
-          Ratio
+          Ratio (per 10K)
         </button>
       </div>
     </div>

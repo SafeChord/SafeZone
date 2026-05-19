@@ -5,11 +5,6 @@ import type { CityRow } from "@/hooks/useCases";
 import { fetchRegionCases } from "@/services/caseService";
 import type { Interval } from "@/types/api";
 
-interface CityCenter {
-  lat: number;
-  lon: number;
-}
-
 interface RegionRow {
   region: string;
   cases: number;
@@ -23,16 +18,58 @@ interface Props {
   interval: Interval;
 }
 
-const TAIWAN_CENTER: [number, number] = [120.9, 23.7];
-const TAIWAN_ZOOM = 7;
-const CITY_ZOOM = 10;
+const TAIWAN_CENTER: [number, number] = [120.5855, 23.5525];
+const TAIWAN_ZOOM = 6.3;
+const FIT_PADDING = 20;
+
+function geojsonBounds(geojson: GeoJSON.FeatureCollection): maplibregl.LngLatBoundsLike | null {
+  let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+  for (const feat of geojson.features) {
+    const geom = feat.geometry;
+    const rings = geom.type === "Polygon"
+      ? (geom as GeoJSON.Polygon).coordinates
+      : geom.type === "MultiPolygon"
+        ? (geom as GeoJSON.MultiPolygon).coordinates.flat()
+        : [];
+    for (const ring of rings) {
+      for (const coord of ring) {
+        const lng = coord[0] as number;
+        const lat = coord[1] as number;
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      }
+    }
+  }
+  if (!isFinite(minLng)) return null;
+  return [[minLng, minLat], [maxLng, maxLat]];
+}
+
+// Plotly "Reds" colorscale approximation (7 stops)
+const REDS: [number, number, number][] = [
+  [255, 245, 240], // #fff5f0
+  [254, 224, 210], // #fee0d2
+  [252, 174, 145], // #fcae91
+  [251, 106, 74],  // #fb6a4a
+  [239, 59, 44],   // #ef3b2c
+  [203, 24, 29],   // #cb181d
+  [103, 0, 13],    // #67000d
+];
 
 function getChoroplethColor(value: number, max: number): string {
-  if (max === 0) return "#f0f0f0";
-  const t = Math.min(value / max, 1);
-  const r = Math.round(240 + (220 - 240) * t);
-  const g = Math.round(240 + (50 - 240) * t);
-  const b = Math.round(240 + (47 - 240) * t);
+  if (max === 0 || value <= 0) return "rgb(255,245,240)";
+  // Log scale: compress high end, expand low end so small non-zero values are visible
+  const t = Math.log1p(value) / Math.log1p(max);
+  const pos = t * (REDS.length - 1);
+  const lo = Math.floor(pos);
+  const hi = Math.min(lo + 1, REDS.length - 1);
+  const f = pos - lo;
+  const cLo = REDS[lo]!;
+  const cHi = REDS[hi]!;
+  const r = Math.round(cLo[0] + (cHi[0] - cLo[0]) * f);
+  const g = Math.round(cLo[1] + (cHi[1] - cLo[1]) * f);
+  const b = Math.round(cLo[2] + (cHi[2] - cLo[2]) * f);
   return `rgb(${r},${g},${b})`;
 }
 
@@ -40,20 +77,15 @@ export function RiskMap({ cities, ratio, systemDate, interval }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [cityCode, setCityCode] = useState<Record<string, string>>({});
-  const [cityCenter, setCityCenter] = useState<Record<string, CityCenter>>({});
   // layer 0 = Taiwan (city-level), layer 1 = drilled into a city (region-level)
   const [drillCity, setDrillCity] = useState<string | null>(null);
   const [regionData, setRegionData] = useState<RegionRow[]>([]);
 
   // Load reference data
   useEffect(() => {
-    Promise.all([
-      fetch(import.meta.env.BASE_URL + "geo/city_code.json").then((r) => r.json()),
-      fetch(import.meta.env.BASE_URL + "geo/city_center.json").then((r) => r.json()),
-    ]).then(([codes, centers]) => {
-      setCityCode(codes as Record<string, string>);
-      setCityCenter(centers as Record<string, CityCenter>);
-    });
+    fetch(import.meta.env.BASE_URL + "geo/city_code.json")
+      .then((r) => r.json())
+      .then((codes) => setCityCode(codes as Record<string, string>));
   }, []);
 
   // Initialize map
@@ -81,9 +113,10 @@ export function RiskMap({ cities, ratio, systemDate, interval }: Props) {
     map.addControl(new maplibregl.NavigationControl(), "top-right");
 
     map.on("load", () => {
+      const cityGeoUrl = import.meta.env.BASE_URL + "geo/geo_city.json";
       map.addSource("cities", {
         type: "geojson",
-        data: import.meta.env.BASE_URL + "geo/geo_city.json",
+        data: cityGeoUrl,
       });
 
       map.addLayer({
@@ -138,8 +171,7 @@ export function RiskMap({ cities, ratio, systemDate, interval }: Props) {
     async (cityName: string) => {
       const map = mapRef.current;
       const code = cityCode[cityName];
-      const center = cityCenter[cityName];
-      if (!map || !code || !center || !systemDate) return;
+      if (!map || !code || !systemDate) return;
 
       // Load region GeoJSON
       const geoRes = await fetch(
@@ -169,19 +201,37 @@ export function RiskMap({ cities, ratio, systemDate, interval }: Props) {
       // Update region source
       (map.getSource("regions") as maplibregl.GeoJSONSource).setData(geoJson);
 
+      // Apply choropleth colors immediately (before useEffect, to avoid isStyleLoaded race)
+      if (rows.length > 0) {
+        const maxVal = Math.max(
+          ...rows.map((r) => (ratio ? (r.ratio ?? 0) : r.cases)),
+          1,
+        );
+        const parts: (string | string[])[] = [];
+        for (const row of rows) {
+          parts.push(row.region, getChoroplethColor(ratio ? (row.ratio ?? 0) : row.cases, maxVal));
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const matchExpr: any = ["match", ["get", "TOWNNAME"], ...parts, "#f0f0f0"];
+        map.setPaintProperty("region-fill", "fill-color", matchExpr);
+      }
+
       // Show region layers, hide city layers
       map.setLayoutProperty("city-fill", "visibility", "none");
       map.setLayoutProperty("city-outline", "visibility", "none");
       map.setLayoutProperty("region-fill", "visibility", "visible");
       map.setLayoutProperty("region-outline", "visibility", "visible");
 
-      // Fly to city
-      map.flyTo({ center: [center.lon, center.lat], zoom: CITY_ZOOM });
+      // Fit to region bounds
+      const regionBounds = geojsonBounds(geoJson);
+      if (regionBounds) {
+        map.fitBounds(regionBounds, { padding: FIT_PADDING });
+      }
 
       setDrillCity(cityName);
       setRegionData(rows);
     },
-    [cityCode, cityCenter, systemDate, interval, ratio],
+    [cityCode, systemDate, interval, ratio],
   );
 
   // Drill back to Taiwan view
@@ -255,6 +305,51 @@ export function RiskMap({ cities, ratio, systemDate, interval }: Props) {
     const matchExpr: any = ["match", ["get", "TOWNNAME"], ...parts, "#f0f0f0"];
     map.setPaintProperty("region-fill", "fill-color", matchExpr);
   }, [regionData, ratio]);
+
+  // Hover tooltip
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10 });
+
+    const handleCityHover = (e: maplibregl.MapMouseEvent) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: ["city-fill"] });
+      if (!features.length) { popup.remove(); return; }
+      const name = features[0]!.properties?.["COUNTYNAME"] as string | undefined;
+      if (!name) return;
+      const row = cities.find((c) => c.city === name);
+      const val = row ? (ratio ? (row.ratio ?? 0) : row.cases) : 0;
+      const label = ratio ? `${val.toFixed(2)} / 萬人` : val.toLocaleString();
+      popup.setLngLat(e.lngLat).setHTML(`<strong>${name}</strong><br/>${label}`).addTo(map);
+    };
+
+    const handleRegionHover = (e: maplibregl.MapMouseEvent) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: ["region-fill"] });
+      if (!features.length) { popup.remove(); return; }
+      const name = features[0]!.properties?.["TOWNNAME"] as string | undefined;
+      if (!name) return;
+      const row = regionData.find((r) => r.region === name);
+      const val = row ? (ratio ? (row.ratio ?? 0) : row.cases) : 0;
+      const label = ratio ? `${val.toFixed(2)} / 萬人` : val.toLocaleString();
+      popup.setLngLat(e.lngLat).setHTML(`<strong>${name}</strong><br/>${label}`).addTo(map);
+    };
+
+    const clearPopup = () => popup.remove();
+
+    map.on("mousemove", "city-fill", handleCityHover);
+    map.on("mouseleave", "city-fill", clearPopup);
+    map.on("mousemove", "region-fill", handleRegionHover);
+    map.on("mouseleave", "region-fill", clearPopup);
+
+    return () => {
+      popup.remove();
+      map.off("mousemove", "city-fill", handleCityHover);
+      map.off("mouseleave", "city-fill", clearPopup);
+      map.off("mousemove", "region-fill", handleRegionHover);
+      map.off("mouseleave", "region-fill", clearPopup);
+    };
+  }, [cities, regionData, ratio]);
 
   // Click handlers
   useEffect(() => {

@@ -29,7 +29,12 @@ export function Layout() {
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", background: "#f5f7fa", minHeight: "100vh" }}>
       <header style={{ background: "#2c3e50", color: "#fff", padding: "12px 24px" }}>
-        <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>SafeZone Dashboard</h1>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>SafeZone Dashboard</h1>
+          <span style={{ fontSize: "13px", background: "rgba(255,255,255,0.15)", padding: "4px 10px", borderRadius: "4px" }}>
+            {systemDate ? `⏱ Simulated: ${systemDate}` : "Loading time..."}
+          </span>
+        </div>
       </header>
 
       <main style={{ padding: "20px 24px", maxWidth: "1400px", margin: "0 auto" }}>
