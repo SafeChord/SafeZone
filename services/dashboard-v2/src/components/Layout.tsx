@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Interval } from "@/types/api";
 import { useSystemTime } from "@/hooks/useSystemTime";
 import { useCases } from "@/hooks/useCases";
@@ -12,19 +12,24 @@ export function Layout() {
   const [ratio, setRatio] = useState(false);
 
   const { systemDate, error: timeError } = useSystemTime();
-  const { national, cities, loading, error: caseError } = useCases(systemDate, interval, ratio);
+  const { cities, error: caseError } = useCases(systemDate, interval, ratio);
 
   const error = timeError ?? caseError;
 
+  const bannerText = useMemo(() => {
+    if (!systemDate) return "";
+    const end = new Date(systemDate);
+    const start = new Date(end);
+    start.setDate(start.getDate() - (Number(interval) - 1));
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const mode = ratio ? "Ratio" : "Cases";
+    return `${fmt(start)} ~ ${fmt(end)} Risk Map — by ${mode}`;
+  }, [systemDate, interval, ratio]);
+
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", background: "#f5f7fa", minHeight: "100vh" }}>
-      <header style={{ background: "#2c7be5", color: "#fff", padding: "12px 24px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h1 style={{ margin: 0, fontSize: "18px", fontWeight: 600 }}>SafeZone Dashboard</h1>
-          <span style={{ fontSize: "13px", opacity: 0.85 }}>
-            {systemDate ? `System Date: ${systemDate}` : "Loading time..."}
-          </span>
-        </div>
+      <header style={{ background: "#2c3e50", color: "#fff", padding: "12px 24px" }}>
+        <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 600 }}>SafeZone Dashboard</h1>
       </header>
 
       <main style={{ padding: "20px 24px", maxWidth: "1400px", margin: "0 auto" }}>
@@ -43,21 +48,42 @@ export function Layout() {
           />
         </div>
 
-        <StatCards national={national} loading={loading} />
-
+        {/* 8:4 grid — map left, cards right */}
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "2fr 1fr",
             gap: "20px",
-            marginTop: "20px",
           }}
         >
-          <div style={{ background: "#fff", borderRadius: "8px", border: "1px solid #e0e0e0", overflow: "hidden" }}>
-            <RiskMap cities={cities} ratio={ratio} />
-          </div>
+          {/* Left: banner + map */}
           <div>
-            <TopCitiesChart cities={cities} ratio={ratio} />
+            <div
+              style={{
+                background: "#2c7be5",
+                color: "#fff",
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 500,
+                borderRadius: "8px 8px 0 0",
+              }}
+            >
+              {bannerText || "Loading..."}
+            </div>
+            <div style={{ background: "#fff", border: "1px solid #e0e0e0", borderTop: "none", borderRadius: "0 0 8px 8px", overflow: "hidden" }}>
+              <RiskMap
+                cities={cities}
+                ratio={ratio}
+                systemDate={systemDate}
+                interval={interval}
+              />
+            </div>
+          </div>
+
+          {/* Right: cases card + top cities stacked */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <StatCards systemDate={systemDate} />
+            <TopCitiesChart cities={cities} ratio={ratio} systemDate={systemDate} />
           </div>
         </div>
       </main>

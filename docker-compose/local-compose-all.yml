@@ -192,3 +192,10 @@ services:
       - LOG_LEVEL=INFO
     profiles:
       - ui
+
+  dashboard-v2:
+    image: safezone-dashboard-v2:${VERSION}
+    ports:
+      - "8081:80"
+    profiles:
+      - ui

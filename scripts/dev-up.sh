@@ -102,7 +102,8 @@ setup_environment() {
     fi
     
     log_success "Environment is up and running!"
-    log_info "Dashboard available at: http://localhost:8080/dashboard/"
+    log_info "Dashboard (classic) available at: http://localhost:8080/dashboard/classic/"
+    log_info "Dashboard (v2)      available at: http://localhost:8081/dashboard/"
 }
 
 # Execute if the script is run directly

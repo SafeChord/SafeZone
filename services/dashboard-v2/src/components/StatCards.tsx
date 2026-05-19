@@ -1,46 +1,66 @@
-import type { AnalyticsAPIData } from "@/types/api";
+import { useState, useEffect } from "react";
+import { fetchNationalCases } from "@/services/caseService";
 
 interface Props {
-  national: AnalyticsAPIData | null;
-  loading: boolean;
+  systemDate: string | null;
 }
 
-export function StatCards({ national, loading }: Props) {
-  if (loading) {
-    return <div style={{ padding: "16px", color: "#888" }}>Loading...</div>;
-  }
+export function StatCards({ systemDate }: Props) {
+  const [weekCases, setWeekCases] = useState<number | null>(null);
+  const [todayCases, setTodayCases] = useState<number | null>(null);
 
-  return (
-    <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-      <Card
-        label="Total Cases"
-        value={national?.aggregated_cases?.toLocaleString() ?? "-"}
-      />
-      <Card
-        label="Period"
-        value={
-          national ? `${national.start_date} ~ ${national.end_date}` : "-"
-        }
-      />
-    </div>
-  );
-}
+  useEffect(() => {
+    if (!systemDate) return;
 
-function Card({ label, value }: { label: string; value: string }) {
+    Promise.all([
+      fetchNationalCases(systemDate, "7"),
+      fetchNationalCases(systemDate, "1"),
+    ]).then(([weekRes, todayRes]) => {
+      setWeekCases(weekRes.data?.aggregated_cases ?? null);
+      setTodayCases(todayRes.data?.aggregated_cases ?? null);
+    });
+  }, [systemDate]);
+
   return (
     <div
       style={{
-        background: "#fff",
-        border: "1px solid #e0e0e0",
+        background: "#2c3e50",
         borderRadius: "8px",
-        padding: "16px 24px",
-        minWidth: "180px",
+        padding: "20px",
+        color: "#fff",
       }}
     >
-      <div style={{ fontSize: "12px", color: "#888", marginBottom: "4px" }}>
-        {label}
+      <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}>
+        近七日新增案例
       </div>
-      <div style={{ fontSize: "22px", fontWeight: 700 }}>{value}</div>
+      <div
+        style={{
+          background: "#2ecc71",
+          borderRadius: "4px",
+          padding: "8px 16px",
+          fontSize: "28px",
+          fontWeight: 700,
+          textAlign: "right",
+          marginBottom: "12px",
+        }}
+      >
+        {weekCases?.toLocaleString() ?? "-"}
+      </div>
+      <div style={{ fontSize: "16px", fontWeight: 700, marginBottom: "8px" }}>
+        今日新增案例
+      </div>
+      <div
+        style={{
+          background: "#2ecc71",
+          borderRadius: "4px",
+          padding: "8px 16px",
+          fontSize: "28px",
+          fontWeight: 700,
+          textAlign: "right",
+        }}
+      >
+        {todayCases?.toLocaleString() ?? "-"}
+      </div>
     </div>
   );
 }
