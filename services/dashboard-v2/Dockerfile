@@ -16,7 +16,9 @@ COPY utils/geo_data/boundaries/geo_city.json /usr/share/nginx/html/geo/
 COPY utils/geo_data/boundaries/regions/ /usr/share/nginx/html/geo/regions/
 COPY utils/geo_data/boundaries/accessory/city_code.json /usr/share/nginx/html/geo/
 COPY utils/geo_data/boundaries/accessory/city_center.json /usr/share/nginx/html/geo/
-COPY services/dashboard-v2/nginx.conf /etc/nginx/conf.d/default.conf
+# nginx.conf is NOT baked in — mounted externally per environment:
+# Local: docker-compose volume mount
+# K8s: ConfigMap mount
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
