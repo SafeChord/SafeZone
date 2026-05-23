@@ -1,5 +1,6 @@
-.PHONY: help build-all test-all push-all build-% test-% build-tool-% push-% \
-        test-worker-golang test-dashboard build-tool-cli build-tool-all smoke-test
+.PHONY: help build-all push-all build-% test-% build-tool-% push-% \
+        test-worker-golang test-dashboard build-tool-cli build-tool-all smoke-test \
+        ci-all ci-% ci-dashboard-v2 ci-worker-golang
 
 # ------------------------
 # 0. global variables
@@ -106,13 +107,25 @@ push-cli:
 	@echo "====== Done tool: cli ======"
 
 # -------------------------
-# 4. Build/Test ALL
+# 4. Aggregate targets
 # -------------------------
 build-all: $(addprefix build-, $(SERVICE_NAMES))
 	@echo "[INFO] ALL SERVICE IMAGES BUILT!"
 
-test-all: $(addprefix test-, $(SERVICE_NAMES))
-	@echo "[INFO] ALL TESTS PASSED!"
+# -------------------------
+# 4.1 CI orchestration (hides language-specific build/test ordering)
+# -------------------------
+# Python: test-% depends on build-% (overlay pattern), so ci = test
+ci-data-ingestor ci-pandemic-simulator ci-analytics-api ci-dashboard: ci-%: test-%
+
+# TypeScript: test first (independent), then build prod image
+ci-dashboard-v2: test-dashboard-v2 build-dashboard-v2
+
+# Go: test first (independent), then build prod image
+ci-worker-golang: test-worker-golang build-worker-golang
+
+ci-all: $(addprefix ci-, $(SERVICE_NAMES))
+	@echo "[INFO] ALL CI PIPELINES PASSED!"
 	
 build-tool-all: $(addprefix build-tool-, $(TOOL_NAMES))
 	@echo "[INFO] ALL TOOL IMAGES BUILDED!"
@@ -163,11 +176,11 @@ dev-logs:
 help:
 	@echo "Available targets:"
 	@echo "  local-ci             Run local CI tests"
-	@echo "  test-<service>       Run tests for a specific service (e.g., test-CovidDataIngestor)"
-	@echo "  build-<service>      Build a specific service (e.g., build-CovidDataIngestor)"
+	@echo "  ci-<service>         Run full CI for a service (e.g., ci-analytics-api)"
+	@echo "  ci-all               Run CI for all services (correct build/test order per language)"
+	@echo "  test-<service>       Run tests for a specific service (e.g., test-analytics-api)"
+	@echo "  build-<service>      Build a specific service (e.g., build-analytics-api)"
 	@echo "  build-tool-<tool>    Build a specific tool"
-	@echo "  test-all             Run tests for all services"
-	@echo "  build-all            Build all services/tools"
 	@echo "  build-tool-all       Build all tools"
 	@echo "  push-<service/tool>  Push a specific service/tool image to the registry"
 	@echo "  push-all             Push all service/tool images to the registry"
