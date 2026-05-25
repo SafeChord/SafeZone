@@ -3,6 +3,53 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.5] - 2026-05-25
+
+This release introduces the modern React SPA Dashboard (v2) replacing the legacy Python Dash implementation, decouples Nginx configuration for runtime flexibility, and optimizes the repository's aggregate CI orchestration pipelines.
+
+### Added
+
+- **React SPA Dashboard v2 (#38)**: Introduced a fast, modern single-page application built on Vite + React 19 + TypeScript.
+- **Geospatial Mapping & Analytics**: Integrated MapLibre GL for fluid vector map zooms/drill-down, and Recharts for responsive infection trends and Top 10 scoreboard analytics.
+- **Unit Test Coverage**: Added comprehensive Vitest suite covering key React services (`apiClient`, `caseService`, and `timeService`) achieving robust test coverage.
+
+### Changed
+
+- **Nginx Decoupling**: Refactored the dashboard deployment strategy to keep the Docker image stateless and environment-agnostic. Decoupled `nginx.conf` so it is mounted dynamically via local Compose volumes or K8s ConfigMaps.
+- **Language-Aware CI Orchestration**: Optimized Makefile aggregate targets (`ci-all`, `ci-%`). Redefined the test sequence based on compiler dependencies (`test -> build` for TS/Go, `build -> test` for Python overlays) to speed up local verification loops.
+
+### Fixed
+
+- **TopCities Scoreboard 7-Day Lock**: Resolved an inconsistency where the Top Cities scoreboard was incorrectly affected by the global time filter. Extracted a specialized `useTopCities` hook that locks all queries to a 7-day rolling window as per system requirements.
+- **Dashboard Test Target Dependency**: Fixed a missing dependency in the Python `test-dashboard` target to ensure production image compilation is run beforehand.
+
+## [0.3.2] - 2026-05-02
+
+### Added
+
+- **Makefile Automation**: `make test-*` targets now automatically trigger `make build-*`, ensuring tests always run against the latest image.
+
+### Changed
+
+- **Template Propagation**: The Python Microservice Scaffold (v0.3.1) has been successfully propagated to `data-ingestor` and `pandemic-simulator`.
+- **Directory Restructuring**:
+    - `data-ingestor`: Extracted `services/ingest_service.py` (zero FastAPI imports) and added `api/dependencies.py` for Kafka DI.
+    - `pandemic-simulator`: Merged `pipeline/` modules into the `services/` layer and structured test directories into `unit/` and `integration/`.
+- **Cleanup**: Removed legacy service READMEs in favor of the central KDD Knowledge Base in `Docs/`.
+
+### Fixed
+
+- **Test Backfill**: Added comprehensive unit tests for `data-ingestor` using mocked Kafka producers, achieving 87% coverage.
+
+## [0.3.1] - 2026-04-22
+
+### Added
+
+- **Python Microservice Scaffold**: Established the canonical `api/core/services/exceptions` layered architecture within `analytics-api` as the project's blueprint.
+- **Pure ASGI Middleware**: Replaced `BaseHTTPMiddleware` with a pure ASGI implementation to fix `ContextVar` isolation issues, ensuring `X-Cache-Status` headers are correctly propagated.
+- **Layered Dependency Injection**: Decoupled the `redis_cache` decorator from FastAPI `Request` objects, moving to explicit DI providers in `api/dependencies.py`.
+- **Cache Stampede Protection**: Implemented Double-Check Locking within the cache service to prevent database overwhelming during concurrent cache misses.
+
 ## [0.3.0] - 2026-04-19
 
 This milestone release, titled "Tooling & Portability", focuses on decoupling the testing infrastructure from the host environment, enhancing protocol-level observability, and hardening the core asynchronous processing engine. It establishes a portable "Lab Environment" for the next phases of architectural evolution.

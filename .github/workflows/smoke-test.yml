@@ -21,14 +21,11 @@ jobs:
       - name: Set up dynamic VERSION variable
         run: echo "VERSION=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_ENV
 
-      - name: Build Service Images
-        run: make build-all
-            
+      - name: Run CI (build + test per service)
+        run: make ci-all
+
       - name: Build Toolkit Images
         run: make build-tool-all
-
-      - name: Run Unit & Integration Tests
-        run: make test-all
       
       - name: Create .env.secret
         run: |

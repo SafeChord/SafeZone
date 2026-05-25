@@ -192,3 +192,12 @@ services:
       - LOG_LEVEL=INFO
     profiles:
       - ui
+
+  dashboard-v2:
+    image: safezone-dashboard-v2:${VERSION}
+    ports:
+      - "8081:80"
+    volumes:
+      - ../services/dashboard-v2/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    profiles:
+      - ui
