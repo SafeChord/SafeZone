@@ -12,8 +12,8 @@ from config.settings import SERVER_IP, SERVER_PORT, SERVICE_NAME, SERVICE_VERSIO
 def create_app():
     app = dash.Dash(
         __name__,
-        routes_pathname_prefix="/dashboard/",
-        requests_pathname_prefix="/dashboard/",
+        routes_pathname_prefix="/dashboard/classic/",
+        requests_pathname_prefix="/dashboard/classic/",
         external_stylesheets=[dbc.themes.FLATLY],
     )
     app.layout = get_dashboard_layout()

@@ -1,0 +1,71 @@
+[
+    {
+        "test_describes": "Request to ingest daily COVID data in correct scenario",
+        "endpoint": "/covid_event",
+        "method": "POST",
+        "request": {
+            "payload": {
+                "date": "2023-03-20",
+                "city": "台北市",
+                "region": "信義區",
+                "cases": 50
+            }
+        },
+        "expected_status_code": 200,
+        "expected_response": {
+            "message": "Data produced to Kafka successfully.",
+            "success": true
+        }
+    },
+    {
+        "test_describes": "Request to ingest daily COVID data with invalid date format",
+        "endpoint": "/covid_event",
+        "method": "POST",
+        "request": {
+            "payload": {
+                "date": "2023/03/20",
+                "city": "台北市",
+                "region": "信義區",
+                "cases": 50
+            }
+        },
+        "expected_status_code": 422
+    },
+    {
+        "test_describes": "Request to ingest daily COVID data with missing fields",
+        "endpoint": "/covid_event",
+        "method": "POST",
+        "request": {
+            "payload": {
+                "date": "2023-03-20",
+                "city": "台北市"
+            }
+        },
+        "expected_status_code": 422
+    },
+    {
+        "test_describes": "Request to ingest daily COVID data with invaild cases number",
+        "endpoint": "/covid_event",
+        "method": "POST",
+        "request": {
+            "payload": {
+                "date": "2023-03-20",
+                "city": "台北市",
+                "region": "信義區",
+                "cases": 0
+            }
+        },
+        "expected_status_code": 422
+    },
+    {
+        "test_describes": "Request to health check the service",
+        "endpoint": "/health",
+        "method": "GET",
+        "expected_status_code": 200,
+        "expected_response": {
+            "status": {"ingestor": "healthy"},
+            "message": "Service is healthy.",
+            "success": true
+        }
+    }
+]

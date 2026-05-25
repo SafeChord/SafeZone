@@ -1,0 +1,41 @@
+[
+    {
+        "test_describes": "generate_partition_key with city and region",
+        "component_under_test": "generate_partition_key",
+        "city": "台北市",
+        "region": "信義區",
+        "expected": "台北市-信義區"
+    },
+    {
+        "test_describes": "generate_partition_key with different city",
+        "component_under_test": "generate_partition_key",
+        "city": "高雄市",
+        "region": "前鎮區",
+        "expected": "高雄市-前鎮區"
+    },
+    {
+        "test_describes": "publish_event calls send_and_wait with correct args",
+        "component_under_test": "publish_event",
+        "payload": {
+            "date": "2023-03-20",
+            "city": "台北市",
+            "region": "信義區",
+            "cases": 50
+        },
+        "topic": "covid.raw.data",
+        "trace_id": "test-trace-123",
+        "expected_partition_key": "台北市-信義區"
+    },
+    {
+        "test_describes": "publish_event skips when producer is None",
+        "component_under_test": "publish_event_no_producer",
+        "payload": {
+            "date": "2023-03-20",
+            "city": "台北市",
+            "region": "信義區",
+            "cases": 50
+        },
+        "topic": "covid.raw.data",
+        "trace_id": "test-trace-456"
+    }
+]

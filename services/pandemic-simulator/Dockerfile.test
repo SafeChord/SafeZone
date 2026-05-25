@@ -8,8 +8,14 @@ COPY services/pandemic-simulator/requirements.test.txt .
 # Install dependencies specified in requirements.test.txt
 RUN pip install --no-cache-dir -r requirements.test.txt --root-user-action=ignore
 
-COPY services/pandemic-simulator/test /test
-
 COPY services/pandemic-simulator/.env.example /app/.env
+# copy test suite (conftest, cases, unit, integration)
+COPY services/pandemic-simulator/test/pytest.ini /test/pytest.ini
+COPY services/pandemic-simulator/test/conftest.py /test/conftest.py
+COPY services/pandemic-simulator/test/cases /test/cases
+COPY services/pandemic-simulator/test/unit /test/unit
+COPY services/pandemic-simulator/test/integration /test/integration
+# symlinks: keep generic unit-test.sh paths (/test/unit_test, /test/integration_test) working
+RUN ln -s /test/unit /test/unit_test && ln -s /test/integration /test/integration_test
 
 COPY services/pandemic-simulator/data/test_data.csv /data/covid_data.csv
