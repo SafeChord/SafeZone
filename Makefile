@@ -89,10 +89,10 @@ test-dashboard-v2:
 		bash scripts/dashboard-v2/unit-test.sh
 	@echo "====== Done: dashboard-v2 ======"
 
-# special case for dashboard (only unit-test)
-test-dashboard:
+# special case for dashboard (overlay pattern: needs prod image first)
+test-dashboard: build-dashboard
 	@echo "====== Testing: dashboard ======"
-	@IMAGE_NAME=$(dashboard_IMAGE_NAME) IMAGE_TAG=$(VERSION)_test BUILD_PATH=$(dashboard_PATH) bash scripts/dashboard/unit-test.sh
+	@IMAGE_NAME=$(dashboard_IMAGE_NAME) IMAGE_TAG=$(VERSION)_test BUILD_PATH=$(dashboard_PATH) VERSION=$(VERSION) bash scripts/dashboard/unit-test.sh
 	@echo "====== Done: dashboard ======"
 
 # special case for cli

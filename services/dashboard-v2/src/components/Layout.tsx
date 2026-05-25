@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import type { Interval } from "@/types/api";
 import { useSystemTime } from "@/hooks/useSystemTime";
 import { useCases } from "@/hooks/useCases";
+import { useTopCities } from "@/hooks/useTopCities";
 import { RiskMap } from "./RiskMap";
 import { StatCards } from "./StatCards";
 import { TopCitiesChart } from "./TopCitiesChart";
@@ -13,8 +14,9 @@ export function Layout() {
 
   const { systemDate, error: timeError } = useSystemTime();
   const { cities, error: caseError } = useCases(systemDate, interval, ratio);
+  const { topCities, topCitiesError } = useTopCities(systemDate, ratio);
 
-  const error = timeError ?? caseError;
+  const error = timeError ?? caseError ?? topCitiesError;
 
   const bannerText = useMemo(() => {
     if (!systemDate) return "";
@@ -88,7 +90,7 @@ export function Layout() {
           {/* Right: cases card + top cities stacked */}
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <StatCards systemDate={systemDate} />
-            <TopCitiesChart cities={cities} ratio={ratio} systemDate={systemDate} />
+            <TopCitiesChart cities={topCities} ratio={ratio} systemDate={systemDate} />
           </div>
         </div>
       </main>
