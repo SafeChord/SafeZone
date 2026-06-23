@@ -15,11 +15,29 @@ class SimulateModel(BaseModel):
         None, description="Invalid date format. Expected 'YYYY-MM-DD'."
     )
 
-## endpoint /db/init 
+## endpoint /db/init
 class DBInitModel(BaseModel):
     force: bool = Field(
         False, description="Force re-initialize the database with administrative data."
     )
+
+## endpoint /db/prune
+class DBPruneModel(BaseModel):
+    year: Optional[int] = Field(
+        None, description="Delete all covid_cases of this calendar year (e.g. 1970)."
+    )
+    all: bool = Field(
+        False, description="Delete ALL covid_cases records (full truncate)."
+    )
+
+    @model_validator(mode="after")
+    def exactly_one_scope(self):
+        # A scope is mandatory and unambiguous: exactly one of --year / --all.
+        if bool(self.year is not None) == bool(self.all):
+            raise ValueError(
+                "Specify exactly one scope: --year YYYY or --all."
+            )
+        return self
 
 ## endpoint /dataflow/verify
 class VerifyModel(BaseModel):
