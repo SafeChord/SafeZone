@@ -16,20 +16,18 @@ import (
 )
 
 type KafkaSource struct {
-	Logger           *logger.ContextLogger
-	Client           *kgo.Client
-	mu               sync.Mutex
-	uncommitted      map[int32]*kgo.Record
-	assigned         map[int32]bool
-	traceToPartition map[string]int32
+	Logger      *logger.ContextLogger
+	Client      *kgo.Client
+	mu          sync.Mutex
+	uncommitted map[int32]*kgo.Record
+	assigned    map[int32]bool
 }
 
 func NewKafkaSource(logger *logger.ContextLogger, brokers string, groupID string, topic string) (*KafkaSource, error) {
 	src := &KafkaSource{
-		Logger:           logger,
-		uncommitted:      make(map[int32]*kgo.Record),
-		assigned:         make(map[int32]bool),
-		traceToPartition: make(map[string]int32),
+		Logger:      logger,
+		uncommitted: make(map[int32]*kgo.Record),
+		assigned:    make(map[int32]bool),
 	}
 
 	opts := []kgo.Opt{
@@ -102,7 +100,6 @@ func (k *KafkaSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, e
 		}
 
 		fetches := k.Client.PollRecords(ctx, max)
-		k.Client.AllowRebalance()
 
 		records := fetches.Records()
 		if len(records) > 0 {
@@ -135,7 +132,6 @@ func (k *KafkaSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, e
 					continue
 				}
 				k.uncommitted[record.Partition] = record
-				k.traceToPartition[event.TraceID] = record.Partition
 				k.mu.Unlock()
 
 				events = append(events, event)
@@ -176,24 +172,10 @@ func (k *KafkaSource) GetEvent(ctx context.Context) (*schema.CovidEvent, error) 
 	return &events[0], nil
 }
 
-func (k *KafkaSource) FilterAssigned(events []schema.CovidEvent) []schema.CovidEvent {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-
-	out := make([]schema.CovidEvent, 0, len(events))
-	for _, e := range events {
-		p, ok := k.traceToPartition[e.TraceID]
-		if ok && !k.assigned[p] {
-			k.Logger.Warn(context.Background(), "Discarding buffered event for revoked partition",
-				zap.String("trace_id", e.TraceID),
-				zap.Int32("partition", p),
-			)
-			delete(k.traceToPartition, e.TraceID)
-			continue
-		}
-		out = append(out, e)
+func (k *KafkaSource) AllowRebalance() {
+	if k.Client != nil {
+		k.Client.AllowRebalance()
 	}
-	return out
 }
 
 func (k *KafkaSource) Commit(ctx context.Context) error {
@@ -201,8 +183,6 @@ func (k *KafkaSource) Commit(ctx context.Context) error {
 	defer k.mu.Unlock()
 
 	defer k.Client.AllowRebalance()
-
-	k.traceToPartition = make(map[string]int32)
 
 	if len(k.uncommitted) == 0 {
 		return nil
