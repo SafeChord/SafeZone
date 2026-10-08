@@ -103,6 +103,11 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 
 // WK-R6: Shutdown loses nothing.
 // Scenario: terminate with events in hand.
+//
+// "In hand" is produced without assuming how the worker batches: the store is slow, so the
+// worker is stopped while a write is still in flight, and the store abandons that write the
+// way a database abandons a transaction whose context is canceled. Whatever the worker had
+// tried to persist by then must be in the store when it exits.
 func TestWK_R6_ShutdownPersistsHeldEventsAndLeavesGroup(t *testing.T) {
 	const n = 5
 	b := newBroker(t, 1)
@@ -110,19 +115,27 @@ func TestWK_R6_ShutdownPersistsHeldEventsAndLeavesGroup(t *testing.T) {
 		b.produceEvent(t, 0, event(i, "region-0"))
 	}
 
-	// A batch that never fills and an interval that never elapses: only shutdown can persist.
 	db := newStore()
-	w := startWorker(t, b, workerOpts{sink: db, batch: 100, flushInterval: time.Hour})
-	eventually(t, 20*time.Second, "the worker to join the group", func() bool { return b.members() == 1 })
-	time.Sleep(2 * time.Second) // let it read the events; nothing tells us from outside that it has
+	db.delay = time.Second
+	w := startWorker(t, b, workerOpts{sink: db, batch: n})
+	eventually(t, 20*time.Second, "the worker to start writing the events it read", func() bool {
+		return db.attemptCount() > 0
+	})
 	if got := db.seenCount(); got != 0 {
-		t.Fatalf("precondition: expected the events to be held, but %d were already persisted", got)
+		t.Fatalf("precondition: a write takes a second, yet %d events are already persisted", got)
 	}
 
 	w.stop()
 
-	if got := db.seenCount(); got != n {
-		t.Fatalf("after shutdown %d of %d held events are persisted", got, n)
+	held := db.triedEvents()
+	if len(held) == 0 {
+		t.Fatalf("precondition: the worker never tried to persist anything")
+	}
+	for _, c := range held {
+		if !db.has(c) {
+			t.Fatalf("event %d was in the worker's hands at shutdown and is not persisted (%d of %d are)",
+				c, db.seenCount(), len(held))
+		}
 	}
 	// The default session timeout is 45s; an empty group within 5s means the worker left.
 	eventually(t, 5*time.Second, "the group to be empty without waiting for a session timeout", func() bool {

@@ -133,23 +133,30 @@ type store struct {
 	fail     error         // when set, every write fails
 	cases    map[string]int
 	seen     map[int]bool // every case count ever persisted
+	tried    map[int]bool // every case count the worker ever tried to persist
 	flushes  int
 	attempts int
 }
 
 func newStore() *store {
-	return &store{cases: map[string]int{}, seen: map[int]bool{}}
+	return &store{cases: map[string]int{}, seen: map[int]bool{}, tried: map[int]bool{}}
 }
 
 func (s *store) Flush(ctx context.Context, buffer *[]schema.CovidEvent) error {
 	s.mu.Lock()
 	s.attempts++
+	for _, e := range *buffer {
+		s.tried[e.Payload.Cases] = true
+	}
 	s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err // a real database refuses a write on a context that is already done
 	}
 	if s.delay > 0 {
 		time.Sleep(s.delay)
+		if err := ctx.Err(); err != nil {
+			return err // and abandons a transaction whose context is canceled part-way
+		}
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -177,6 +184,17 @@ func (s *store) has(cases int) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.seen[cases]
+}
+
+// triedEvents returns the case counts of every event the worker tried to persist.
+func (s *store) triedEvents() []int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]int, 0, len(s.tried))
+	for c := range s.tried {
+		out = append(out, c)
+	}
+	return out
 }
 
 func (s *store) flushCount() int {
