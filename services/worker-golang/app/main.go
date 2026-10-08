@@ -42,7 +42,10 @@ func main() {
 		workers = append(workers, w)
 	}
 
-	service.RunWorkers(ctx, workers, cfg.ParallelN)
+	if err := service.RunWorkers(ctx, workers, cfg.ParallelN); err != nil {
+		log.Error(ctx, "Worker-golang service exited with error", zap.Error(err))
+		os.Exit(1)
+	}
 
 	log.Info(ctx, "Worker-golang service completed")
 }
