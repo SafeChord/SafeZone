@@ -1,6 +1,7 @@
 package requirements_test
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -93,6 +94,50 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 			})
 			eventually(t, 20*time.Second, "progress to be committed past the invalid event", func() bool {
 				return b.committedAt(t, 0) == tc.end
+			})
+			if db.has(99) {
+				t.Fatalf("the invalid event was persisted")
+			}
+		})
+	}
+}
+
+// WK-R5: An invalid event never blocks the stream.
+// Scenario: invalid event between valid ones, where the invalid event arrives on its own.
+//
+// Nothing valid follows it, so nothing else will carry the committed offset past it. Left
+// uncommitted it is delivered again after every restart, and the group reports a lag that
+// never drains.
+func TestWK_R5_InvalidEventArrivingAloneIsNotDeliveredAgain(t *testing.T) {
+	unknownCity := event(99, "region-0")
+	unknownCity.Payload.City = "Atlantis"
+	unknownCityJSON, err := json.Marshal(unknownCity)
+	if err != nil {
+		t.Fatalf("marshal event: %v", err)
+	}
+
+	cases := []struct {
+		name    string
+		invalid []byte
+	}{
+		{"event that cannot be parsed", []byte("{not json")},
+		{"event naming an unknown city", unknownCityJSON},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := newBroker(t, 1)
+			db := newStore()
+			b.produceEvent(t, 0, event(1, "region-0"))
+			startWorker(t, b, workerOpts{sink: db, batch: 10, validate: true})
+			eventually(t, 20*time.Second, "the valid event to be persisted and committed", func() bool {
+				return db.has(1) && b.committedAt(t, 0) == 1
+			})
+
+			b.produce(t, 0, tc.invalid)
+
+			eventually(t, 10*time.Second, "progress to be committed past the invalid event", func() bool {
+				return b.committedAt(t, 0) == 2
 			})
 			if db.has(99) {
 				t.Fatalf("the invalid event was persisted")
