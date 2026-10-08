@@ -3,7 +3,10 @@ package adapter
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -13,12 +16,19 @@ import (
 )
 
 type KafkaSource struct {
-	Logger *logger.ContextLogger
-	Client *kgo.Client
-	Reader *kgo.FetchesRecordIter
+	Logger      *logger.ContextLogger
+	Client      *kgo.Client
+	mu          sync.Mutex
+	uncommitted map[int32]*kgo.Record
+	assigned    map[int32]bool
 }
 
-func NewKafkaSource(logger *logger.ContextLogger, brokers string, groupID string, topic string) *KafkaSource {
+func NewKafkaSource(logger *logger.ContextLogger, brokers string, groupID string, topic string) (*KafkaSource, error) {
+	src := &KafkaSource{
+		Logger:      logger,
+		uncommitted: make(map[int32]*kgo.Record),
+		assigned:    make(map[int32]bool),
+	}
 
 	opts := []kgo.Opt{
 		kgo.SeedBrokers(strings.Split(brokers, ",")...),
@@ -28,65 +38,170 @@ func NewKafkaSource(logger *logger.ContextLogger, brokers string, groupID string
 		kgo.DisableAutoCommit(),
 		// Start consuming from the earliest offset if no committed offset is found
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
+		// Block rebalances while records from a poll are being processed
+		kgo.BlockRebalanceOnPoll(),
+		kgo.OnPartitionsAssigned(func(ctx context.Context, cl *kgo.Client, m map[string][]int32) {
+			src.mu.Lock()
+			defer src.mu.Unlock()
+			for _, partitions := range m {
+				for _, p := range partitions {
+					src.assigned[p] = true
+				}
+			}
+		}),
+		kgo.OnPartitionsRevoked(func(ctx context.Context, cl *kgo.Client, m map[string][]int32) {
+			src.mu.Lock()
+			defer src.mu.Unlock()
+			for _, partitions := range m {
+				for _, p := range partitions {
+					delete(src.assigned, p)
+					delete(src.uncommitted, p)
+				}
+			}
+		}),
+		kgo.OnPartitionsLost(func(ctx context.Context, cl *kgo.Client, m map[string][]int32) {
+			src.mu.Lock()
+			defer src.mu.Unlock()
+			for _, partitions := range m {
+				for _, p := range partitions {
+					delete(src.assigned, p)
+					delete(src.uncommitted, p)
+				}
+			}
+		}),
 	}
 
 	client, err := kgo.NewClient(opts...)
 	if err != nil {
 		logger.Error(context.Background(), "Failed to create Kafka client", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("failed to create kafka client: %w", err)
 	}
+	src.Client = client
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if err := client.Ping(ctx); err != nil {
 		logger.Error(context.Background(), "Failed to connect to Kafka", zap.Error(err))
-		return nil
+		client.Close()
+		return nil, fmt.Errorf("failed to connect to kafka: %w", err)
 	}
 
 	logger.Info(context.Background(), "Successfully connected to Kafka with franz-go")
-
-	return &KafkaSource{
-		Logger: logger,
-		Client: client,
-		Reader: nil,
-	}
+	return src, nil
 }
 
-func (k *KafkaSource) GetEvent(ctx context.Context) (*schema.CovidEvent, error) {
-	if k.Reader == nil || k.Reader.Done() {
-		fetches := k.Client.PollFetches(ctx)
+func (k *KafkaSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, error) {
+	if max <= 0 {
+		max = 100
+	}
+	for {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 
-		// handle fetch errors
+		fetches := k.Client.PollRecords(ctx, max)
+
+		records := fetches.Records()
+		if len(records) > 0 {
+			events := make([]schema.CovidEvent, 0, len(records))
+			for _, record := range records {
+				var event schema.CovidEvent
+				if err := json.Unmarshal(record.Value, &event); err != nil {
+					k.Logger.Warn(ctx, "Failed to unmarshal event, skipping malformed record",
+						zap.Error(err),
+						zap.String("topic", record.Topic),
+						zap.Int32("partition", record.Partition),
+						zap.Int64("offset", record.Offset),
+					)
+					k.mu.Lock()
+					if k.assigned[record.Partition] {
+						k.uncommitted[record.Partition] = record
+					}
+					k.mu.Unlock()
+					continue
+				}
+
+				k.mu.Lock()
+				if !k.assigned[record.Partition] {
+					k.mu.Unlock()
+					k.Logger.Warn(ctx, "Record received for unassigned partition, skipping",
+						zap.String("topic", record.Topic),
+						zap.Int32("partition", record.Partition),
+						zap.Int64("offset", record.Offset),
+					)
+					continue
+				}
+				k.uncommitted[record.Partition] = record
+				k.mu.Unlock()
+
+				events = append(events, event)
+			}
+			return events, nil
+		}
+
 		if errs := fetches.Errors(); len(errs) > 0 {
+			for _, fe := range errs {
+				if errors.Is(fe.Err, context.DeadlineExceeded) || errors.Is(fe.Err, context.Canceled) {
+					k.Client.AllowRebalance()
+					return nil, fe.Err
+				}
+			}
+			k.Client.AllowRebalance()
 			return nil, errs[0].Err
 		}
 
-		k.Reader = fetches.RecordIter()
-		// check reader is done again， in case no records were fetched
-		if k.Reader.Done() {
-			return nil, context.DeadlineExceeded
+		if ctx.Err() != nil {
+			k.Client.AllowRebalance()
+			return nil, ctx.Err()
+		}
+
+		// When PollRecords returns with 0 records and no error (e.g. empty broker fetch),
+		// allow rebalance so consumer group operations are not blocked, then continue polling until ctx expires.
+		k.Client.AllowRebalance()
+	}
+}
+
+func (k *KafkaSource) AllowRebalance() {
+	if k.Client != nil {
+		k.Client.AllowRebalance()
+	}
+}
+
+func (k *KafkaSource) Commit(ctx context.Context) error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	defer k.Client.AllowRebalance()
+
+	if len(k.uncommitted) == 0 {
+		return nil
+	}
+
+	recordsToCommit := make([]*kgo.Record, 0, len(k.uncommitted))
+	for partition, record := range k.uncommitted {
+		if k.assigned[partition] {
+			recordsToCommit = append(recordsToCommit, record)
 		}
 	}
 
-	record := k.Reader.Next()
-
-	var event schema.CovidEvent
-	if err := json.Unmarshal(record.Value, &event); err != nil {
-		k.Logger.Warn(ctx, "json unmarshal failed", zap.Error(err))
-		return nil, err
-	}
-	// Manual offset: Commit the record after processing
-	if err := k.Client.CommitRecords(ctx, record); err != nil {
-		k.Logger.Error(ctx, "failed to commit offset", zap.Error(err))
+	if len(recordsToCommit) == 0 {
+		k.uncommitted = make(map[int32]*kgo.Record)
+		return nil
 	}
 
-	k.Logger.Debug(ctx, "Kafka event received", zap.String("trace_id", event.TraceID))
+	if err := k.Client.CommitRecords(ctx, recordsToCommit...); err != nil {
+		k.Logger.Error(ctx, "Failed to commit records", zap.Error(err))
+		return err
+	}
 
-	return &event, nil
+	k.uncommitted = make(map[int32]*kgo.Record)
+	return nil
 }
 
 func (k *KafkaSource) Close(ctx context.Context) error {
 	k.Logger.Info(ctx, "Closing Kafka client")
-	k.Client.Close()
+	if k.Client != nil {
+		k.Client.CloseAllowingRebalance()
+	}
 	return nil
 }
