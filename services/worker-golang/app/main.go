@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"syscall"
+
+	"go.uber.org/zap"
 
 	"safezone.service.worker-golang/app/config"
 	"safezone.service.worker-golang/app/pkg/logger"
@@ -18,7 +21,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	log := logger.NewContextLogger(cfg.ServiceName, cfg.ServiceVersion, cfg.Environment)
@@ -26,7 +29,12 @@ func main() {
 
 	workers := make([]*service.Worker, 0, cfg.WorkerCount)
 	for i := 0; i < cfg.WorkerCount; i++ {
-		workers = append(workers, service.NewWorker(i, cfg, log))
+		w, err := service.NewWorker(i, cfg, log)
+		if err != nil {
+			log.Error(ctx, "Failed to initialize worker", zap.Int("worker_id", i), zap.Error(err))
+			os.Exit(1)
+		}
+		workers = append(workers, w)
 	}
 
 	service.RunWorkers(ctx, workers, cfg.ParallelN)

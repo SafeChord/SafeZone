@@ -2,6 +2,7 @@ package adapter
 
 import (
 	"context"
+	"sync"
 
 	"safezone.service.worker-golang/app/schema"
 )
@@ -15,7 +16,9 @@ type mockResult struct {
 // Push events via Push() or inject errors via PushError().
 // GetEvent blocks until an event/error is available or ctx is done.
 type MockSource struct {
-	ch chan mockResult
+	ch        chan mockResult
+	mu        sync.Mutex
+	committed int
 }
 
 func NewMockSource() *MockSource {
@@ -37,6 +40,19 @@ func (m *MockSource) GetEvent(ctx context.Context) (*schema.CovidEvent, error) {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
+}
+
+func (m *MockSource) Commit(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.committed++
+	return nil
+}
+
+func (m *MockSource) CommittedCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.committed
 }
 
 func (m *MockSource) Close(ctx context.Context) error {
