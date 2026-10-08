@@ -186,6 +186,13 @@ func (s *store) has(cases int) bool {
 	return s.seen[cases]
 }
 
+// stored returns the case count the store holds for a region of Taipei on the test date.
+func (s *store) stored(region string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cases["2024-01-01/Taipei/"+region]
+}
+
 // triedEvents returns the case counts of every event the worker tried to persist.
 func (s *store) triedEvents() []int {
 	s.mu.Lock()
