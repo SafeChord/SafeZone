@@ -14,6 +14,11 @@ import (
 	"safezone.service.worker-golang/app/service"
 )
 
+// setupSignalContext returns a context that is canceled when SIGINT or SIGTERM is received.
+func setupSignalContext() (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+}
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -21,7 +26,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := setupSignalContext()
 	defer stop()
 
 	log := logger.NewContextLogger(cfg.ServiceName, cfg.ServiceVersion, cfg.Environment)

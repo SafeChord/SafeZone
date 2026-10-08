@@ -1,9 +1,7 @@
-package main_test
+package main
 
 import (
-	"context"
 	"os"
-	"os/signal"
 	"syscall"
 	"testing"
 	"time"
@@ -12,7 +10,7 @@ import (
 // TestSignalNotify_SIGTERMCancelsContext verifies that SIGTERM is registered
 // and cancels the context (WK-R6 graceful shutdown trigger in main.go).
 func TestSignalNotify_SIGTERMCancelsContext(t *testing.T) {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := setupSignalContext()
 	defer stop()
 
 	p, err := os.FindProcess(os.Getpid())

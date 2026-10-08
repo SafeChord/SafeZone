@@ -90,57 +90,83 @@ func NewKafkaSource(logger *logger.ContextLogger, brokers string, groupID string
 	return src, nil
 }
 
-func (k *KafkaSource) GetEvent(ctx context.Context) (*schema.CovidEvent, error) {
+func (k *KafkaSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, error) {
+	if max <= 0 {
+		max = 100
+	}
 	for {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
 
-		fetches := k.Client.PollRecords(ctx, 1)
+		fetches := k.Client.PollRecords(ctx, max)
+		k.Client.AllowRebalance()
 
 		records := fetches.Records()
 		if len(records) > 0 {
-			record := records[0]
+			events := make([]schema.CovidEvent, 0, len(records))
+			for _, record := range records {
+				k.mu.Lock()
+				assigned := k.assigned[record.Partition]
+				k.mu.Unlock()
+				if !assigned {
+					k.Logger.Warn(ctx, "Record received for unassigned partition, skipping",
+						zap.String("topic", record.Topic),
+						zap.Int32("partition", record.Partition),
+						zap.Int64("offset", record.Offset),
+					)
+					continue
+				}
 
-			k.mu.Lock()
-			assigned := k.assigned[record.Partition]
-			k.mu.Unlock()
-			if !assigned {
-				continue
-			}
-
-			var event schema.CovidEvent
-			if err := json.Unmarshal(record.Value, &event); err != nil {
-				k.Logger.Warn(ctx, "Failed to unmarshal event, skipping malformed record",
-					zap.Error(err),
-					zap.String("topic", record.Topic),
-					zap.Int32("partition", record.Partition),
-					zap.Int64("offset", record.Offset),
-				)
 				k.trackRecord(record)
-				continue
-			}
 
-			k.trackRecord(record)
-			k.Logger.Debug(ctx, "Kafka event received", zap.String("trace_id", event.TraceID))
-			return &event, nil
+				var event schema.CovidEvent
+				if err := json.Unmarshal(record.Value, &event); err != nil {
+					k.Logger.Warn(ctx, "Failed to unmarshal event, skipping malformed record",
+						zap.Error(err),
+						zap.String("topic", record.Topic),
+						zap.Int32("partition", record.Partition),
+						zap.Int64("offset", record.Offset),
+					)
+					continue
+				}
+
+				events = append(events, event)
+			}
+			return events, nil
 		}
 
 		if errs := fetches.Errors(); len(errs) > 0 {
 			for _, fe := range errs {
 				if errors.Is(fe.Err, context.DeadlineExceeded) || errors.Is(fe.Err, context.Canceled) {
+					k.Client.AllowRebalance()
 					return nil, fe.Err
 				}
 			}
+			k.Client.AllowRebalance()
 			return nil, errs[0].Err
 		}
 
 		if ctx.Err() != nil {
+			k.Client.AllowRebalance()
 			return nil, ctx.Err()
 		}
 
+		// When PollRecords returns with 0 records and no error (e.g. empty broker fetch),
+		// allow rebalance so consumer group operations are not blocked, then continue polling until ctx expires.
+		k.Client.AllowRebalance()
+	}
+}
+
+func (k *KafkaSource) GetEvent(ctx context.Context) (*schema.CovidEvent, error) {
+	events, err := k.Poll(ctx, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(events) == 0 {
 		return nil, context.DeadlineExceeded
 	}
+	return &events[0], nil
 }
 
 func (k *KafkaSource) trackRecord(record *kgo.Record) {

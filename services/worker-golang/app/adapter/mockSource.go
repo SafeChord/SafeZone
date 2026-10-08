@@ -33,6 +33,33 @@ func (m *MockSource) PushError(err error) {
 	m.ch <- mockResult{err: err}
 }
 
+func (m *MockSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, error) {
+	if max <= 0 {
+		max = 1
+	}
+	select {
+	case r := <-m.ch:
+		if r.err != nil {
+			return nil, r.err
+		}
+		events := []schema.CovidEvent{*r.event}
+		for len(events) < max {
+			select {
+			case next := <-m.ch:
+				if next.err != nil {
+					return events, nil
+				}
+				events = append(events, *next.event)
+			default:
+				return events, nil
+			}
+		}
+		return events, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
 func (m *MockSource) GetEvent(ctx context.Context) (*schema.CovidEvent, error) {
 	select {
 	case r := <-m.ch:
