@@ -7,7 +7,6 @@ package requirements_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -59,11 +58,16 @@ func newBroker(t *testing.T, partitions int32) *broker {
 	return &broker{addr: addr, cl: cl, adm: kadm.NewClient(cl)}
 }
 
+// replayTrace is the trace ID every test event carries. A trace ID names a request, not an
+// event (STD-R1): one simulator replay stamps the same ID on every event it causes, across
+// all partitions. Nothing may treat it as unique per event.
+const replayTrace = "trace-of-one-replay"
+
 // event builds a valid event whose case count is seq, so a test can tell events apart.
 func event(seq int, region string) schema.CovidEvent {
 	e := schema.CovidEvent{
 		EventType: "covid.case.reported",
-		TraceID:   fmt.Sprintf("trace-%d", seq),
+		TraceID:   replayTrace,
 		Version:   "1.0",
 	}
 	e.Payload.Date = "2024-01-01"
