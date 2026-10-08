@@ -27,6 +27,9 @@ type Worker struct {
 }
 
 func (w *Worker) flushAndCommit(ctx context.Context, buffer *[]schema.CovidEvent) error {
+	if len(*buffer) > 0 && w.Source != nil {
+		*buffer = w.Source.FilterAssigned(*buffer)
+	}
 	if len(*buffer) > 0 && w.Sink != nil {
 		if err := w.Sink.Flush(ctx, buffer); err != nil {
 			w.Logger.Error(ctx, "Failed to flush events to sink", zap.Error(err))

@@ -82,6 +82,10 @@ func (m *MockSource) CommittedCount() int {
 	return m.committed
 }
 
+func (m *MockSource) FilterAssigned(events []schema.CovidEvent) []schema.CovidEvent {
+	return events
+}
+
 func (m *MockSource) Close(ctx context.Context) error {
 	return nil
 }
