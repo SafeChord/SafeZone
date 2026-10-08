@@ -14,7 +14,7 @@ type mockResult struct {
 
 // MockSource is a controllable EventSource for testing.
 // Push events via Push() or inject errors via PushError().
-// GetEvent blocks until an event/error is available or ctx is done.
+// Poll blocks until an event/error is available or ctx is done.
 type MockSource struct {
 	ch        chan mockResult
 	mu        sync.Mutex
@@ -55,15 +55,6 @@ func (m *MockSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, er
 			}
 		}
 		return events, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-}
-
-func (m *MockSource) GetEvent(ctx context.Context) (*schema.CovidEvent, error) {
-	select {
-	case r := <-m.ch:
-		return r.event, r.err
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}

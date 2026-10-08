@@ -93,10 +93,6 @@ func (w *Worker) Run(ctx context.Context) error {
 			}
 		}
 
-		if len(events) == 0 {
-			continue
-		}
-
 		// 2. Parse and validate them. Invalid ones are skipped but still count as read.
 		validEvents := make([]schema.CovidEvent, 0, len(events))
 		for _, event := range events {
@@ -118,12 +114,10 @@ func (w *Worker) Run(ctx context.Context) error {
 		if len(validEvents) > 0 && w.Sink != nil {
 			if err := w.Sink.Flush(workerCtx, &validEvents); err != nil {
 				w.Logger.Error(workerCtx, "Failed to flush events", zap.Error(err))
-				if w.Source != nil {
-					w.Source.AllowRebalance()
-				}
 				return err
 			}
 		}
+		inFlight = nil
 
 		// 4. Commit the offsets of everything this poll returned.
 		// 5. Call AllowRebalance (executed inside Source.Commit).
@@ -134,7 +128,6 @@ func (w *Worker) Run(ctx context.Context) error {
 			}
 		}
 
-		inFlight = nil
 		inFlightPolled = false
 
 		// 6. Only now poll again.

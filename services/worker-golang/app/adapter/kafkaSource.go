@@ -161,17 +161,6 @@ func (k *KafkaSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, e
 	}
 }
 
-func (k *KafkaSource) GetEvent(ctx context.Context) (*schema.CovidEvent, error) {
-	events, err := k.Poll(ctx, 1)
-	if err != nil {
-		return nil, err
-	}
-	if len(events) == 0 {
-		return nil, context.DeadlineExceeded
-	}
-	return &events[0], nil
-}
-
 func (k *KafkaSource) AllowRebalance() {
 	if k.Client != nil {
 		k.Client.AllowRebalance()
