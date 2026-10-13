@@ -1,6 +1,7 @@
 .PHONY: help build-all push-all promote-all build-% test-% build-tool-% push-% promote-% \
         test-worker-golang test-dashboard build-tool-cli build-tool-all smoke-test \
-        ci-all ci-% ci-dashboard-v2 ci-worker-golang promote-cli check-data-fixtures
+        ci-all ci-% ci-dashboard-v2 ci-worker-golang promote-cli check-data-fixtures \
+        go-worker-golang
 
 # ------------------------
 # 0. global variables
@@ -89,6 +90,19 @@ test-worker-golang:
 	@docker run --rm safezone-worker:$(VERSION)_test
 	@docker rmi safezone-worker:$(VERSION)_test || true
 	@echo "====== Done: worker-golang ======"
+
+# Go toolchain for worker-golang, in the same image as Dockerfile.test (no Go on the host).
+# The source is mounted, so `go get` / `go mod tidy` write go.mod and go.sum in place.
+# e.g. make go-worker-golang ARGS="test -race -count=5 -run WK_R4 ./app/..."
+#      make go-worker-golang ARGS="mod tidy"
+GO_CACHE_DIR ?= $(HOME)/.cache/safezone-go
+go-worker-golang:
+	@mkdir -p $(GO_CACHE_DIR)
+	@docker run --rm -u $$(id -u):$$(id -g) \
+		-v $(CURDIR)/services/worker-golang:/module -w /module \
+		-v $(GO_CACHE_DIR):/go-cache \
+		-e HOME=/tmp -e GOCACHE=/go-cache/build -e GOMODCACHE=/go-cache/mod \
+		golang:1.24-bookworm go $(ARGS)
 
 # special case for dashboard-v2 (Node/vitest)
 test-dashboard-v2:
@@ -200,6 +214,7 @@ help:
 	@echo "  ci-<service>         Run full CI for a service (e.g., ci-analytics-api)"
 	@echo "  ci-all               Run CI for all services (correct build/test order per language)"
 	@echo "  test-<service>       Run tests for a specific service (e.g., test-analytics-api)"
+	@echo "  go-worker-golang     Run a go command for worker-golang in a container (ARGS=\"test -race ./...\")"
 	@echo "  build-<service>      Build a specific service (e.g., build-analytics-api)"
 	@echo "  build-tool-<tool>    Build a specific tool"
 	@echo "  build-tool-all       Build all tools"

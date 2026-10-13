@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"go.uber.org/zap"
@@ -26,65 +27,110 @@ type Worker struct {
 }
 
 func (w *Worker) Run(ctx context.Context) error {
-	buffer := make([]schema.CovidEvent, 0, w.Config.BatchSize)
+	workerCtx := context.WithValue(ctx, w.Logger.WorkerIDKey, w.ID)
+	w.Logger.Info(workerCtx, "Starting worker", zap.String("event", "Worker started"))
 
-	// add worker ID to the context for logging
-	ctx = context.WithValue(ctx, w.Logger.WorkerIDKey, w.ID)
+	var (
+		inFlight       []schema.CovidEvent
+		inFlightPolled bool
+	)
 
-	w.Logger.Info(ctx, "Starting worker", zap.String("event", "Worker started"))
-
-	// flush remain events in buffer on exit
+	// On exit / shutdown: flush and commit anything polled but not yet persisted on a fresh context
 	defer func() {
-		if len(buffer) > 0 {
-			w.Logger.Info(ctx, "Flushing remaining events before shutdown",
-				zap.String("event", "Flushing remaining events"))
-			// flush the remaining events
-			w.Sink.Flush(ctx, &buffer)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		shutdownCtx = context.WithValue(shutdownCtx, w.Logger.WorkerIDKey, w.ID)
+
+		if inFlightPolled {
+			if len(inFlight) > 0 && w.Sink != nil {
+				w.Logger.Info(shutdownCtx, "Flushing in-flight events before shutdown",
+					zap.String("event", "Flushing in-flight events"))
+				if err := w.Sink.Flush(shutdownCtx, &inFlight); err != nil {
+					w.Logger.Error(shutdownCtx, "Failed to flush in-flight events on shutdown", zap.Error(err))
+					if w.Source != nil {
+						w.Source.AllowRebalance()
+					}
+					return
+				}
+			}
+			if w.Source != nil {
+				if err := w.Source.Commit(shutdownCtx); err != nil {
+					w.Logger.Error(shutdownCtx, "Failed to commit in-flight offsets on shutdown", zap.Error(err))
+				}
+			}
+		} else if w.Source != nil {
+			w.Source.AllowRebalance()
 		}
 	}()
 
+	batchSize := w.Config.BatchSize
+	if batchSize <= 0 {
+		batchSize = 100
+	}
+
 	for {
+		if ctx.Err() != nil {
+			w.Logger.Info(workerCtx, "Context canceled, stopping worker",
+				zap.String("event", "context canceled"))
+			return nil
+		}
+
+		// 1. Poll up to BatchSize records, waiting at most FlushInterval.
 		readCtx, cancel := context.WithTimeout(ctx, w.Config.FlushInterval)
-		event, err := w.Source.GetEvent(readCtx)
+		events, err := w.Source.Poll(readCtx, batchSize)
 		cancel()
 
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
-				if len(buffer) == 0 {
-					continue
-				}
-				// timeout reached, flush if there are events in the buffer
-				w.Sink.Flush(ctx, &buffer)
+				continue
 			} else if errors.Is(err, context.Canceled) {
-				w.Logger.Info(ctx, "Get context canceled, stopping worker",
+				w.Logger.Info(workerCtx, "Get context canceled, stopping worker",
 					zap.String("event", "context canceled"))
 				return nil
 			} else {
-				w.Logger.Error(ctx, "Failed to get event from source", zap.Error(err))
-				return err
-			}
-			continue
-		}
-
-		// if the event can't pass validation, skip it
-		// future: we add the bad event to a dead-letter queue
-		if w.Validator != nil && !w.Validator.Validate(ctx, *event) {
-			w.Logger.Warn(ctx, "An event validation failed, skipping event",
-				zap.String("event", "Event validation failed"))
-			continue
-		}
-		// if the event is valid, add trace to the context for logging
-		ctx = context.WithValue(ctx, w.Logger.TraceIDKey, event.TraceID)
-		w.Logger.Info(ctx, "Received event from source",
-			zap.String("event", "Event received"))
-		buffer = append(buffer, *event)
-
-		if len(buffer) >= w.Config.BatchSize {
-			if err := w.Sink.Flush(ctx, &buffer); err != nil {
-				w.Logger.Error(ctx, "Failed to flush events", zap.Error(err))
+				w.Logger.Error(workerCtx, "Failed to get events from source", zap.Error(err))
 				return err
 			}
 		}
+
+		// 2. Parse and validate them. Invalid ones are skipped but still count as read.
+		validEvents := make([]schema.CovidEvent, 0, len(events))
+		for _, event := range events {
+			logCtx := context.WithValue(workerCtx, w.Logger.TraceIDKey, event.TraceID)
+			if w.Validator != nil && !w.Validator.Validate(logCtx, event) {
+				w.Logger.Warn(logCtx, "An event validation failed, skipping event",
+					zap.String("event", "Event validation failed"))
+				continue
+			}
+			w.Logger.Info(logCtx, "Received event from source",
+				zap.String("event", "Event received"))
+			validEvents = append(validEvents, event)
+		}
+
+		inFlight = validEvents
+		inFlightPolled = true
+
+		// 3. If any valid events came out of this poll, flush them. If the flush fails, do not commit.
+		if len(validEvents) > 0 && w.Sink != nil {
+			if err := w.Sink.Flush(workerCtx, &validEvents); err != nil {
+				w.Logger.Error(workerCtx, "Failed to flush events", zap.Error(err))
+				return err
+			}
+		}
+		inFlight = nil
+
+		// 4. Commit the offsets of everything this poll returned.
+		// 5. Call AllowRebalance (executed inside Source.Commit).
+		if w.Source != nil {
+			if err := w.Source.Commit(workerCtx); err != nil {
+				w.Logger.Error(workerCtx, "Failed to commit offsets", zap.Error(err))
+				return err
+			}
+		}
+
+		inFlightPolled = false
+
+		// 6. Only now poll again.
 	}
 }
 

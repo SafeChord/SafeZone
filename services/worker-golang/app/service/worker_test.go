@@ -194,6 +194,73 @@ func TestWorker_SourceError(t *testing.T) {
 	}
 }
 
+// TestWorker_TimeoutFlushError verifies that a Flush failure on the timeout path returns an error (WG-8).
+func TestWorker_TimeoutFlushError(t *testing.T) {
+	src := adapter.NewMockSource()
+	flushErr := errors.New("db down on timeout flush")
+	sink := &strategy.MockSink{FlushError: flushErr}
+	w := newTestWorker(src, sink)
+
+	done := runAsync(context.Background(), w)
+	src.Push(makeEvent(0))
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, flushErr) {
+			t.Fatalf("expected flush error %v, got %v", flushErr, err)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("worker did not exit on timeout flush error")
+	}
+}
+
+// TestWorker_BatchFlushError verifies that a Flush failure on batch size path returns an error.
+func TestWorker_BatchFlushError(t *testing.T) {
+	src := adapter.NewMockSource()
+	flushErr := errors.New("db down on batch flush")
+	sink := &strategy.MockSink{FlushError: flushErr}
+	w := newTestWorker(src, sink)
+
+	done := runAsync(context.Background(), w)
+	for i := 0; i < 3; i++ {
+		src.Push(makeEvent(i))
+	}
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, flushErr) {
+			t.Fatalf("expected flush error %v, got %v", flushErr, err)
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("worker did not exit on batch flush error")
+	}
+}
+
+// TestWorker_CommitCalledAfterSuccessfulFlush verifies offsets are committed after flush.
+func TestWorker_CommitCalledAfterSuccessfulFlush(t *testing.T) {
+	src := adapter.NewMockSource()
+	sink := &strategy.MockSink{}
+	w := newTestWorker(src, sink)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := runAsync(ctx, w)
+
+	for i := 0; i < 3; i++ {
+		src.Push(makeEvent(i))
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	<-done
+
+	if sink.FlushedCount() != 1 {
+		t.Fatalf("expected 1 flush, got %d", sink.FlushedCount())
+	}
+	if src.CommittedCount() < 1 {
+		t.Fatalf("expected source.Commit to be called at least once, got %d", src.CommittedCount())
+	}
+}
+
 // mockCacheReader satisfies schema.CacheReader for validator tests
 type mockCacheReader struct {
 	cities  map[string]int
