@@ -59,6 +59,7 @@ services:
       - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
       - KAFKA_DEFAULT_REPLICATION_FACTOR=1
       - KAFKA_MIN_INSYNC_REPLICAS=1
+      # Staging and preview declare covid.case.data with three partitions; the topic the broker auto-creates here matches.
       - KAFKA_NUM_PARTITIONS=3
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
