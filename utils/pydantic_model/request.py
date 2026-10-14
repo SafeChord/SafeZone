@@ -1,7 +1,7 @@
 import datetime
 from typing import Optional, Literal
 
-from pydantic import BaseModel, Field, model_validator  # type: ignore
+from pydantic import BaseModel, Field, field_validator, model_validator  # type: ignore
 
 
 # --- payload/parameter models  --- #
@@ -135,7 +135,21 @@ class CovidDataModel(BaseModel):
         max_length=50,
         description="The length of region name is between 1 to 50.",
     )
-    cases: int = Field(..., ge=1, description="'cases' must be a positive integer.")
+    cases: int = Field(
+        ...,
+        ge=1,
+        le=2147483647,
+        description="'cases' must be a positive integer between 1 and 2147483647.",
+    )
+
+    @field_validator("date")
+    @classmethod
+    def validate_calendar_date(cls, v: str) -> str:
+        try:
+            datetime.date.fromisoformat(v)
+        except ValueError as e:
+            raise ValueError(f"Invalid calendar date: {v}") from e
+        return v
 
 
 # time server models

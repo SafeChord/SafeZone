@@ -4,6 +4,7 @@ import logging
 
 from pydantic import BaseModel  # type: ignore
 
+from exceptions.custom import KafkaUnavailableError
 from utils.pydantic_model.request import CovidDataModel
 
 
@@ -30,7 +31,7 @@ async def publish_event(producer, topic: str, payload: CovidDataModel, trace_id:
             "Kafka producer is not available, cannot send data to Kafka.",
             extra={"event": "kafka_producer_not_available"},
         )
-        return
+        raise KafkaUnavailableError()
 
     partition_key = generate_partition_key(city=payload.city, region=payload.region)
 
