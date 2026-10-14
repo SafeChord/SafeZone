@@ -1,9 +1,11 @@
+import asyncio
 import json
 import time
 import logging
 
 from pydantic import BaseModel  # type: ignore
 
+from core.settings import KAFKA_PUBLISH_TIMEOUT
 from exceptions.custom import KafkaUnavailableError
 from utils.pydantic_model.request import CovidDataModel
 
@@ -25,7 +27,13 @@ def generate_partition_key(city: str, region: str) -> str:
     return f"{city}-{region}"
 
 
-async def publish_event(producer, topic: str, payload: CovidDataModel, trace_id: str = "-"):
+async def publish_event(
+    producer,
+    topic: str,
+    payload: CovidDataModel,
+    trace_id: str = "-",
+    timeout: float = KAFKA_PUBLISH_TIMEOUT,
+):
     if not producer:
         logger.error(
             "Kafka producer is not available, cannot send data to Kafka.",
@@ -47,8 +55,19 @@ async def publish_event(producer, topic: str, payload: CovidDataModel, trace_id:
         extra={"event": "send_event_to_kafka"},
     )
 
-    await producer.send_and_wait(
-        topic=topic,
-        value=json.dumps(event.model_dump()).encode("utf-8"),
-        key=partition_key.encode("utf-8"),
-    )
+    try:
+        await asyncio.wait_for(
+            producer.send_and_wait(
+                topic=topic,
+                value=json.dumps(event.model_dump()).encode("utf-8"),
+                key=partition_key.encode("utf-8"),
+            ),
+            timeout=timeout,
+        )
+    except (TimeoutError, asyncio.TimeoutError) as exc:
+        logger.error(
+            f"Kafka publish timed out after {timeout} seconds.",
+            extra={"event": "kafka_publish_timeout"},
+        )
+        raise KafkaUnavailableError(f"Kafka publish timed out after {timeout} seconds.") from exc
+

@@ -15,3 +15,4 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
 # Kafka settings
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "covid.case.data")
+KAFKA_PUBLISH_TIMEOUT = float(os.getenv("KAFKA_PUBLISH_TIMEOUT", "4.0"))
