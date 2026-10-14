@@ -1,7 +1,7 @@
 .PHONY: help build-all push-all promote-all build-% test-% build-tool-% push-% promote-% \
         test-worker-golang test-dashboard build-tool-cli build-tool-all smoke-test \
         ci-all ci-% ci-dashboard-v2 ci-worker-golang promote-cli check-data-fixtures \
-        go-worker-golang
+        go-worker-golang test-contract
 
 # ------------------------
 # 0. global variables
@@ -100,9 +100,18 @@ go-worker-golang:
 	@mkdir -p $(GO_CACHE_DIR)
 	@docker run --rm -u $$(id -u):$$(id -g) \
 		-v $(CURDIR)/services/worker-golang:/module -w /module \
+		-v $(CURDIR)/contract:/contract:ro -e CONTRACT_DIR=/contract \
 		-v $(GO_CACHE_DIR):/go-cache \
 		-e HOME=/tmp -e GOCACHE=/go-cache/build -e GOMODCACHE=/go-cache/mod \
 		golang:1.24-bookworm go $(ARGS)
+
+# contract tests: utils/ implementations and example events against contract/
+test-contract:
+	@echo "====== Testing: contract ======"
+	@docker buildx build -t safezone-contract:$(VERSION)_test -f utils/Dockerfile.test .
+	@docker run --rm safezone-contract:$(VERSION)_test
+	@docker rmi safezone-contract:$(VERSION)_test || true
+	@echo "====== Done: contract ======"
 
 # special case for dashboard-v2 (Node/vitest)
 test-dashboard-v2:
@@ -151,7 +160,7 @@ ci-dashboard-v2: test-dashboard-v2 build-dashboard-v2
 # Go: test first (independent), then build prod image
 ci-worker-golang: test-worker-golang build-worker-golang
 
-ci-all: $(addprefix ci-, $(SERVICE_NAMES))
+ci-all: $(addprefix ci-, $(SERVICE_NAMES)) test-contract
 	@echo "[INFO] ALL CI PIPELINES PASSED!"
 	
 build-tool-all: $(addprefix build-tool-, $(TOOL_NAMES))
@@ -214,6 +223,7 @@ help:
 	@echo "  ci-<service>         Run full CI for a service (e.g., ci-analytics-api)"
 	@echo "  ci-all               Run CI for all services (correct build/test order per language)"
 	@echo "  test-<service>       Run tests for a specific service (e.g., test-analytics-api)"
+	@echo "  test-contract        Run the contract tests (utils/ and example events against contract/)"
 	@echo "  go-worker-golang     Run a go command for worker-golang in a container (ARGS=\"test -race ./...\")"
 	@echo "  build-<service>      Build a specific service (e.g., build-analytics-api)"
 	@echo "  build-tool-<tool>    Build a specific tool"

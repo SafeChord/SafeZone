@@ -15,5 +15,7 @@ COPY services/data-ingestor/test/conftest.py /test/conftest.py
 COPY services/data-ingestor/test/cases /test/cases
 COPY services/data-ingestor/test/unit /test/unit
 COPY services/data-ingestor/test/integration /test/integration
+# ING-R2: the event contract the unit tests validate against
+COPY contract /contract
 # symlinks: keep generic unit-test.sh paths (/test/unit_test, /test/integration_test) working
 RUN ln -s /test/unit /test/unit_test && ln -s /test/integration /test/integration_test

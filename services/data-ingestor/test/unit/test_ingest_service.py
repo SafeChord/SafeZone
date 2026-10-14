@@ -3,6 +3,7 @@ import json
 import logging
 
 import pytest  # type: ignore
+from jsonschema import Draft202012Validator  # type: ignore
 from unittest.mock import AsyncMock
 
 from utils.pydantic_model.request import CovidDataModel
@@ -64,3 +65,26 @@ async def test_publish_event_no_producer(case, logger):
         trace_id=case["trace_id"],
     )
     logger.debug("publish_event gracefully handled None producer.")
+
+
+# ING-R2: every event the ingestor publishes satisfies the event contract.
+# Format checking is on, so `format: date` is enforced and not just an annotation.
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", publish_event_cases, ids=lambda c: c["test_describes"])
+async def test_ing_r2_published_event_satisfies_contract(case):
+    with open("/contract/covid_event.json", encoding="utf-8") as f:
+        validator = Draft202012Validator(
+            json.load(f), format_checker=Draft202012Validator.FORMAT_CHECKER
+        )
+    mock_producer = AsyncMock()
+
+    await publish_event(
+        producer=mock_producer,
+        topic=case["topic"],
+        payload=CovidDataModel(**case["payload"]),
+        trace_id=case["trace_id"],
+    )
+
+    event = json.loads(mock_producer.send_and_wait.call_args[1]["value"])
+    errors = [e.message for e in validator.iter_errors(event)]
+    assert not errors, errors

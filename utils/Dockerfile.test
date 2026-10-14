@@ -1,0 +1,14 @@
+# Contract tests: utils/ implementations and example events against contract/.
+FROM python:3.13-slim
+
+COPY utils/requirements.test.txt .
+RUN pip install --no-cache-dir -r requirements.test.txt --root-user-action=ignore
+
+COPY utils/db /app/utils/db
+COPY utils/test /app/utils/test
+COPY contract /contract
+
+ENV PYTHONPATH=/app
+WORKDIR /app
+
+CMD ["pytest", "/app/utils/test"]
