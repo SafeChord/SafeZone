@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request  # type: ignore
 from fastapi.responses import JSONResponse  # type: ignore
 from pydantic import ValidationError  # type: ignore
 
+from exceptions.custom import KafkaUnavailableError
 from utils.pydantic_model.response import ErrorModel, APIResponse
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,25 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
+async def kafka_unavailable_error_handler(request: Request, exc: KafkaUnavailableError):
+    logger.error(f"Kafka unavailable error: {exc}")
+
+    resp = APIResponse(
+        success=False,
+        message="Kafka service unavailable",
+        errors=ErrorModel(
+            field="kafka",
+            summary="Kafka producer is not available.",
+            detail=str(exc),
+        ),
+    )
+    return JSONResponse(
+        status_code=500,
+        content=resp.model_dump(),
+    )
+
+
 def register_exception_handlers(app: FastAPI):
     app.add_exception_handler(ValidationError, validation_error_handler)
+    app.add_exception_handler(KafkaUnavailableError, kafka_unavailable_error_handler)
     app.add_exception_handler(Exception, global_exception_handler)

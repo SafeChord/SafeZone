@@ -1,4 +1,5 @@
 # test/unit/test_ingest_service.py
+import asyncio
 import json
 import logging
 
@@ -6,6 +7,7 @@ import pytest  # type: ignore
 from jsonschema import Draft202012Validator  # type: ignore
 from unittest.mock import AsyncMock
 
+from exceptions.custom import KafkaUnavailableError
 from utils.pydantic_model.request import CovidDataModel
 from services.ingest_service import generate_partition_key, publish_event
 
@@ -57,14 +59,35 @@ async def test_publish_event(case, logger):
 async def test_publish_event_no_producer(case, logger):
     payload = CovidDataModel(**case["payload"])
 
-    # Should not raise — just log error and return
-    await publish_event(
-        producer=None,
-        topic=case["topic"],
-        payload=payload,
-        trace_id=case["trace_id"],
-    )
-    logger.debug("publish_event gracefully handled None producer.")
+    # ING-R4: Should raise KafkaUnavailableError when producer is unavailable
+    with pytest.raises(KafkaUnavailableError):
+        await publish_event(
+            producer=None,
+            topic=case["topic"],
+            payload=payload,
+            trace_id=case["trace_id"],
+        )
+    logger.debug("publish_event raised KafkaUnavailableError when producer is None.")
+
+
+@pytest.mark.asyncio
+async def test_publish_event_timeout(logger):
+    async def never_completes(*args, **kwargs):
+        await asyncio.Event().wait()
+
+    mock_producer = AsyncMock()
+    mock_producer.send_and_wait.side_effect = never_completes
+    payload = CovidDataModel(date="2023-03-20", city="台北市", region="信義區", cases=50)
+
+    with pytest.raises(KafkaUnavailableError, match="Kafka publish timed out"):
+        await publish_event(
+            producer=mock_producer,
+            topic="covid.case.data",
+            payload=payload,
+            trace_id="test-trace",
+            timeout=0.05,
+        )
+    logger.debug("publish_event raised KafkaUnavailableError on timeout.")
 
 
 # ING-R2: every event the ingestor publishes satisfies the event contract.

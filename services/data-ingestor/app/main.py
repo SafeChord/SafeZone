@@ -1,4 +1,4 @@
-# app/main.py]
+# app/main.py
 import uuid
 import logging
 from contextlib import asynccontextmanager
