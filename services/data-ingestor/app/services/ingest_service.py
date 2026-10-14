@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 # Kafka event contract model
-# Contract file: utils.contracts.covid_event.json
+# Contract file: contract/covid_event.json
 class CovidContract(BaseModel):
     event_type: str
     event_time: int

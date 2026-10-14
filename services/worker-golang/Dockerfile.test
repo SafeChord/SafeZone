@@ -3,4 +3,7 @@ WORKDIR /module
 COPY services/worker-golang/go.mod services/worker-golang/go.sum /module/
 RUN go mod download
 COPY services/worker-golang/app /module/app
+# WK-R10: the example events the requirement tests load
+COPY contract /contract
+ENV CONTRACT_DIR=/contract
 CMD ["go", "test", "./..."]

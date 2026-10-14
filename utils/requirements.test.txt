@@ -1,0 +1,5 @@
+# keep sqlalchemy at the version the services and the relay CLI use:
+# the table contract test compares the DDL this version emits
+sqlalchemy==2.0.36
+jsonschema==4.26.0
+pytest==8.3.3
