@@ -3,8 +3,11 @@
 Each test states a promise the rest of the system relies on. Do not edit, loosen
 or delete them to make an implementation pass; raise an objection instead.
 """
+import asyncio
+import time
 from unittest.mock import AsyncMock, patch
 
+import httpx  # type: ignore
 import pytest  # type: ignore
 from aiokafka.errors import KafkaConnectionError, KafkaTimeoutError  # type: ignore
 from fastapi.testclient import TestClient  # type: ignore
@@ -50,6 +53,37 @@ def test_ing_r4_failed_publish_is_reported_as_failure(producer):
     body = resp.json()
     assert body["success"] is False
     assert body.get("message") != SUCCESS_MESSAGE
+
+
+def unacknowledging_producer():
+    async def never_completes(*args, **kwargs):
+        await asyncio.Event().wait()
+
+    producer = AsyncMock()
+    producer.send_and_wait.side_effect = never_completes
+    producer.send.side_effect = never_completes
+    return producer
+
+
+# ING-R4: a publish the topic never acknowledges fails within 4 seconds (decided on #82),
+# below the simulator's 5-second client timeout, so the caller is told it failed.
+# A broker lost after startup looks like this: the producer retries and never raises.
+@pytest.mark.asyncio
+async def test_ing_r4_unacknowledged_publish_fails_within_bound():
+    producer = unacknowledging_producer()
+    app = create_app()
+    app.dependency_overrides[get_kafka_producer] = lambda: producer
+    transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+
+    async with httpx.AsyncClient(transport=transport, base_url="http://ingestor") as client:
+        start = time.monotonic()
+        # The outer limit only keeps a hanging implementation from hanging the suite.
+        resp = await asyncio.wait_for(client.post("/covid_event", json=VALID_RECORD), timeout=10)
+        elapsed = time.monotonic() - start
+
+    assert 500 <= resp.status_code < 600
+    assert resp.json()["success"] is False
+    assert elapsed < 4.5
 
 
 # ING-R5: an invalid record is rejected and nothing is published.
