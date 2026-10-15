@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
@@ -46,7 +47,8 @@ func RunWorkers(ctx context.Context, workers []*Worker, parallelN int) error {
 			defer func() { <-sem }()
 
 			if err := worker.Run(workerCtx); err != nil {
-				worker.Logger.Error(workerCtx, "worker exited with error", zap.Error(err))
+				logCtx := context.WithValue(workerCtx, worker.Logger.WorkerIDKey, strconv.Itoa(worker.ID))
+				worker.Logger.Error(logCtx, "worker exited with error", zap.Error(err))
 				if ctx.Err() == nil {
 					errOnce.Do(func() {
 						firstErr = err

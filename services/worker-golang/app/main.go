@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"go.uber.org/zap"
@@ -18,6 +19,8 @@ import (
 func setupSignalContext() (context.Context, context.CancelFunc) {
 	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 }
+
+var newWorker = service.NewWorker
 
 func main() {
 	cfg, err := config.Load()
@@ -34,9 +37,10 @@ func main() {
 
 	workers := make([]*service.Worker, 0, cfg.WorkerCount)
 	for i := 0; i < cfg.WorkerCount; i++ {
-		w, err := service.NewWorker(i, cfg, log)
+		w, err := newWorker(i, cfg, log)
 		if err != nil {
-			log.Error(ctx, "Failed to initialize worker", zap.Int("worker_id", i), zap.Error(err))
+			workerCtx := context.WithValue(ctx, log.WorkerIDKey, strconv.Itoa(i))
+			log.Error(workerCtx, "Failed to initialize worker", zap.Error(err))
 			os.Exit(1)
 		}
 		workers = append(workers, w)

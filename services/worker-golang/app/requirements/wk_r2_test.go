@@ -39,7 +39,11 @@ func TestWK_R2_LaterEventWinsWithinOneWrite(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(1, "Taipei"))
 	mock.ExpectQuery("FROM regions").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "city_id"}).AddRow(7, "region-0", 1))
-	sink := strategy.NewDBSink(quietLogger(), db, cache.NewCache(db))
+	areas, err := cache.NewCache(db)
+	if err != nil {
+		t.Fatalf("loading the area tables: %v", err)
+	}
+	sink := strategy.NewDBSink(quietLogger(), db, areas)
 
 	var sent []driver.Value
 	one := written{&sent}
