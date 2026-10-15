@@ -20,7 +20,11 @@ func NewWorker(id int, cfg *config.Config, log *logger.ContextLogger) (*Worker, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
-	cache := cachepkg.NewCache(db)
+	cache, err := cachepkg.NewCache(db)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to load administrative-area cache: %w", err)
+	}
 	source, err := adapter.NewKafkaSource(log, cfg.KafkaBroker, cfg.KafkaGroupID, cfg.KafkaTopic)
 	if err != nil {
 		_ = db.Close()

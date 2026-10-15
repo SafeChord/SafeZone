@@ -1,7 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strconv"
 	"time"
@@ -31,8 +33,7 @@ type Config struct {
 
 func Load() (*Config, error) {
 	err := godotenv.Load()
-	// if err presents when loading .env file
-	if err != nil {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 	// basic configuration
@@ -47,7 +48,7 @@ func Load() (*Config, error) {
 	workerCount := getNumEnv("WORKER_COUNT", 1)
 	parallelN := getNumEnv("PARALLEL_N", 1)
 	// Kafka configuration
-	kafkaBroker := getEnv("KAFKA_BROKER", "localhost:9092,")
+	kafkaBroker := getEnv("KAFKA_BROKER", "localhost:9092")
 	kafkaGroupID := getEnv("KAFKA_GROUP_ID", "worker-group")
 	kafkaTopic := getEnv("KAFKA_TOPIC", "covid-events")
 	// database configuration

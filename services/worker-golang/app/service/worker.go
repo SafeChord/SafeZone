@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -27,7 +28,7 @@ type Worker struct {
 }
 
 func (w *Worker) Run(ctx context.Context) error {
-	workerCtx := context.WithValue(ctx, w.Logger.WorkerIDKey, w.ID)
+	workerCtx := context.WithValue(ctx, w.Logger.WorkerIDKey, strconv.Itoa(w.ID))
 	w.Logger.Info(workerCtx, "Starting worker", zap.String("event", "Worker started"))
 
 	var (
@@ -39,7 +40,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
-		shutdownCtx = context.WithValue(shutdownCtx, w.Logger.WorkerIDKey, w.ID)
+		shutdownCtx = context.WithValue(shutdownCtx, w.Logger.WorkerIDKey, strconv.Itoa(w.ID))
 
 		if inFlightPolled {
 			if len(inFlight) > 0 && w.Sink != nil {
@@ -135,6 +136,7 @@ func (w *Worker) Run(ctx context.Context) error {
 }
 
 func (w *Worker) Close(ctx context.Context) {
+	ctx = context.WithValue(ctx, w.Logger.WorkerIDKey, strconv.Itoa(w.ID))
 
 	if err := w.Source.Close(ctx); err != nil {
 		w.Logger.Error(ctx, "Failed to close event source", zap.Error(err))

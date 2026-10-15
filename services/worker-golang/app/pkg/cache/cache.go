@@ -11,33 +11,68 @@ type Cache struct {
 	regionMap map[string]int
 }
 
-func DebugString(label, s string) {
-	fmt.Printf("%s : [%s] HEX: [% x]\n", label, s, []byte(s))
+func NewCache(db *sqlx.DB) (*Cache, error) {
+	cityMap, err := loadCityIDs(db)
+	if err != nil {
+		return nil, err
+	}
+	regionMap, err := loadRegionIDs(db)
+	if err != nil {
+		return nil, err
+	}
+	return &Cache{cityMap: cityMap, regionMap: regionMap}, nil
 }
 
-func NewCache(db *sqlx.DB) *Cache {
-	cityRows, _ := db.Queryx("SELECT id, name FROM cities")
-	cityMap := make(map[string]int)
-	for cityRows.Next() {
+func loadCityIDs(db *sqlx.DB) (cityMap map[string]int, err error) {
+	rows, err := db.Queryx("SELECT id, name FROM cities")
+	if err != nil {
+		return nil, fmt.Errorf("query cities: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("close cities rows: %w", closeErr)
+		}
+	}()
+
+	cityMap = make(map[string]int)
+	for rows.Next() {
 		var id int
 		var name string
-		cityRows.Scan(&id, &name)
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, fmt.Errorf("scan city row: %w", err)
+		}
 		cityMap[name] = id
-		// DebugString("City", name)
 	}
-	// caching region primary keys
-	regionRows, _ := db.Queryx("SELECT id, name, city_id FROM regions")
-	regionMap := make(map[string]int)
-	for regionRows.Next() {
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate cities rows: %w", err)
+	}
+	return cityMap, nil
+}
+
+func loadRegionIDs(db *sqlx.DB) (regionMap map[string]int, err error) {
+	rows, err := db.Queryx("SELECT id, name, city_id FROM regions")
+	if err != nil {
+		return nil, fmt.Errorf("query regions: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("close regions rows: %w", closeErr)
+		}
+	}()
+
+	regionMap = make(map[string]int)
+	for rows.Next() {
 		var id, cityID int
 		var name string
-		regionRows.Scan(&id, &name, &cityID)
+		if err := rows.Scan(&id, &name, &cityID); err != nil {
+			return nil, fmt.Errorf("scan region row: %w", err)
+		}
 		regionMap[fmt.Sprintf("%d|%s", cityID, name)] = id
 	}
-	return &Cache{
-		cityMap:   cityMap,
-		regionMap: regionMap,
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate regions rows: %w", err)
 	}
+	return regionMap, nil
 }
 
 func (c *Cache) GetCityID(city string) int {

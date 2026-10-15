@@ -22,6 +22,15 @@ func testLogger() *logger.ContextLogger {
 	return l
 }
 
+func testCache(t *testing.T, db *sqlx.DB) *cache.Cache {
+	t.Helper()
+	areas, err := cache.NewCache(db)
+	if err != nil {
+		t.Fatalf("loading area tables: %v", err)
+	}
+	return areas
+}
+
 func makeEvent(date, city, region string, cases int) schema.CovidEvent {
 	var e schema.CovidEvent
 	e.EventType = "covid.case.reported"
@@ -49,7 +58,7 @@ func TestDBSink_CommitFailureKeepsBuffer(t *testing.T) {
 	mock.ExpectQuery("FROM regions").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "city_id"}).AddRow(10, "Zhongzheng", 1))
 
-	sink := strategy.NewDBSink(testLogger(), db, cache.NewCache(db))
+	sink := strategy.NewDBSink(testLogger(), db, testCache(t, db))
 
 	mock.ExpectBegin()
 	mock.ExpectExec("covid_cases").
@@ -89,7 +98,7 @@ func TestDBSink_ExecFailureKeepsBuffer(t *testing.T) {
 	mock.ExpectQuery("FROM regions").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "city_id"}).AddRow(10, "Zhongzheng", 1))
 
-	sink := strategy.NewDBSink(testLogger(), db, cache.NewCache(db))
+	sink := strategy.NewDBSink(testLogger(), db, testCache(t, db))
 
 	execErr := errors.New("syntax error or connection lost")
 	mock.ExpectBegin()
@@ -127,7 +136,7 @@ func TestDBSink_EmptyBufferNoop(t *testing.T) {
 	mock.ExpectQuery("FROM regions").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "city_id"}).AddRow(10, "Zhongzheng", 1))
 
-	sink := strategy.NewDBSink(testLogger(), db, cache.NewCache(db))
+	sink := strategy.NewDBSink(testLogger(), db, testCache(t, db))
 
 	buffer := []schema.CovidEvent{}
 	if err := sink.Flush(context.Background(), &buffer); err != nil {
@@ -153,7 +162,7 @@ func TestDBSink_LastWinsDedupe(t *testing.T) {
 	mock.ExpectQuery("FROM regions").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "city_id"}).AddRow(10, "Zhongzheng", 1))
 
-	sink := strategy.NewDBSink(testLogger(), db, cache.NewCache(db))
+	sink := strategy.NewDBSink(testLogger(), db, testCache(t, db))
 
 	mock.ExpectBegin()
 	// Only ONE row should be inserted, with cases = 20 (the later event)
