@@ -2,7 +2,8 @@ package schema
 
 import (
 	"context"
-	"regexp"
+	"math"
+	"time"
 
 	"go.uber.org/zap"
 	"safezone.service.worker-golang/app/pkg/logger"
@@ -16,23 +17,23 @@ type CacheReader interface {
 }
 
 type CovidValidator struct {
-	Logger      *logger.ContextLogger
-	datePattern *regexp.Regexp // YYYY-MM-DD 格式
-	cache       CacheReader
+	Logger *logger.ContextLogger
+	cache  CacheReader
 }
 
 func NewCovidValidator(logger *logger.ContextLogger, cache CacheReader) *CovidValidator {
 	return &CovidValidator{
-		Logger:      logger,
-		datePattern: regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`),
-		cache:       cache,
+		Logger: logger,
+		cache:  cache,
 	}
 }
 
 func (v *CovidValidator) Validate(ctx context.Context, event CovidEvent) bool {
-	// date is not in YYYY-MM-DD format
-	if !v.datePattern.MatchString(event.Payload.Date) {
-		v.Logger.Warn(ctx, "Invalid date format", zap.String("date", event.Payload.Date), zap.String("trace_id", event.TraceID))
+	// The case table stores DATE. Parse the calendar date as well as its shape; Go accepts
+	// year 0000, but PostgreSQL DATE does not (and the event contract requires a real date).
+	date, err := time.Parse(time.DateOnly, event.Payload.Date)
+	if err != nil || date.Year() == 0 {
+		v.Logger.Warn(ctx, "Invalid date", zap.String("date", event.Payload.Date), zap.String("trace_id", event.TraceID))
 		return false
 	}
 	// city and region must exist in cache
@@ -47,8 +48,9 @@ func (v *CovidValidator) Validate(ctx context.Context, event CovidEvent) bool {
 			zap.String("trace_id", event.TraceID))
 		return false
 	}
-	// cases must be a non-negative integer
-	if event.Payload.Cases < 0 {
+	// Cases must fit the case table's INTEGER column. Zero remains accepted by the consumer,
+	// although the event contract's producer-side minimum is one.
+	if event.Payload.Cases < 0 || event.Payload.Cases > math.MaxInt32 {
 		v.Logger.Warn(ctx, "Invalid cases count", zap.Int("cases", event.Payload.Cases),
 			zap.String("trace_id", event.TraceID),
 			zap.String("date", event.Payload.Date),

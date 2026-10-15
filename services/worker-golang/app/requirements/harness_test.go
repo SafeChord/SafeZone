@@ -7,6 +7,8 @@ package requirements_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -130,7 +132,8 @@ func (b *broker) members() int {
 }
 
 // store is a sink that remembers what it was asked to persist, keyed like the case table.
-// Several workers may share one store, as several pods share one database.
+// Several workers may share one store, as several pods share one database. Like the case
+// table, it refuses a whole write when one event in it does not fit a column.
 type store struct {
 	mu       sync.Mutex
 	delay    time.Duration // time one write takes
@@ -168,6 +171,11 @@ func (s *store) Flush(ctx context.Context, buffer *[]schema.CovidEvent) error {
 		return s.fail
 	}
 	for _, e := range *buffer {
+		if err := fitsCaseTable(e); err != nil {
+			return err
+		}
+	}
+	for _, e := range *buffer {
 		s.cases[e.Payload.Date+"/"+e.Payload.City+"/"+e.Payload.Region] = e.Payload.Cases
 		s.seen[e.Payload.Cases] = true
 	}
@@ -177,6 +185,18 @@ func (s *store) Flush(ctx context.Context, buffer *[]schema.CovidEvent) error {
 }
 
 func (s *store) Close(context.Context) error { return nil }
+
+// fitsCaseTable reports why the case table (contract/schema.sql) cannot hold an event:
+// `date` is a DATE and `cases` an INTEGER.
+func fitsCaseTable(e schema.CovidEvent) error {
+	if _, err := time.Parse(time.DateOnly, e.Payload.Date); err != nil {
+		return fmt.Errorf("date/time field value out of range: %q", e.Payload.Date)
+	}
+	if e.Payload.Cases > math.MaxInt32 || e.Payload.Cases < math.MinInt32 {
+		return fmt.Errorf("%d is out of range for an integer column", e.Payload.Cases)
+	}
+	return nil
+}
 
 func (s *store) seenCount() int {
 	s.mu.Lock()

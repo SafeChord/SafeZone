@@ -3,8 +3,11 @@ package requirements_test
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 	"time"
+
+	"safezone.service.worker-golang/app/schema"
 )
 
 // WK-R3: Progress is recorded only after persistence.
@@ -38,6 +41,7 @@ func TestWK_R3_EventsNotPersistedAreDeliveredAgain(t *testing.T) {
 func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 	unknownCity := event(99, "region-0")
 	unknownCity.Payload.City = "Atlantis"
+	notADate, tooMany := unstorable()
 
 	cases := []struct {
 		name    string
@@ -60,6 +64,26 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 			produce: func(t *testing.T, b *broker) {
 				b.produceEvent(t, 0, event(1, "region-0"))
 				b.produceEvent(t, 0, unknownCity)
+				b.produceEvent(t, 0, event(2, "region-0"))
+			},
+			valid: []int{1, 2},
+			end:   3,
+		},
+		{
+			name: "event whose date is not a calendar date",
+			produce: func(t *testing.T, b *broker) {
+				b.produceEvent(t, 0, event(1, "region-0"))
+				b.produceEvent(t, 0, notADate)
+				b.produceEvent(t, 0, event(2, "region-0"))
+			},
+			valid: []int{1, 2},
+			end:   3,
+		},
+		{
+			name: "event whose cases exceed the table's integer",
+			produce: func(t *testing.T, b *broker) {
+				b.produceEvent(t, 0, event(1, "region-0"))
+				b.produceEvent(t, 0, tooMany)
 				b.produceEvent(t, 0, event(2, "region-0"))
 			},
 			valid: []int{1, 2},
@@ -95,11 +119,21 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 			eventually(t, 20*time.Second, "progress to be committed past the invalid event", func() bool {
 				return b.committedAt(t, 0) == tc.end
 			})
-			if db.has(99) {
+			if db.has(99) || db.has(tooMany.Payload.Cases) {
 				t.Fatalf("the invalid event was persisted")
 			}
 		})
 	}
+}
+
+// unstorable returns two events that pass a shape check but that the case table cannot hold
+// (#85): one whose date matches YYYY-MM-DD but is not a calendar date, and one whose case
+// count is one above the largest INTEGER. The event contract allows neither.
+func unstorable() (notADate, tooMany schema.CovidEvent) {
+	notADate = event(99, "region-0")
+	notADate.Payload.Date = "2026-13-45"
+	tooMany = event(math.MaxInt32+1, "region-0")
+	return notADate, tooMany
 }
 
 // WK-R5: An invalid event never blocks the stream.
@@ -111,9 +145,13 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 func TestWK_R5_InvalidEventArrivingAloneIsNotDeliveredAgain(t *testing.T) {
 	unknownCity := event(99, "region-0")
 	unknownCity.Payload.City = "Atlantis"
-	unknownCityJSON, err := json.Marshal(unknownCity)
-	if err != nil {
-		t.Fatalf("marshal event: %v", err)
+	notADate, tooMany := unstorable()
+	marshal := func(e schema.CovidEvent) []byte {
+		v, err := json.Marshal(e)
+		if err != nil {
+			t.Fatalf("marshal event: %v", err)
+		}
+		return v
 	}
 
 	cases := []struct {
@@ -121,7 +159,9 @@ func TestWK_R5_InvalidEventArrivingAloneIsNotDeliveredAgain(t *testing.T) {
 		invalid []byte
 	}{
 		{"event that cannot be parsed", []byte("{not json")},
-		{"event naming an unknown city", unknownCityJSON},
+		{"event naming an unknown city", marshal(unknownCity)},
+		{"event whose date is not a calendar date", marshal(notADate)},
+		{"event whose cases exceed the table's integer", marshal(tooMany)},
 	}
 
 	for _, tc := range cases {
@@ -139,7 +179,7 @@ func TestWK_R5_InvalidEventArrivingAloneIsNotDeliveredAgain(t *testing.T) {
 			eventually(t, 10*time.Second, "progress to be committed past the invalid event", func() bool {
 				return b.committedAt(t, 0) == 2
 			})
-			if db.has(99) {
+			if db.has(99) || db.has(tooMany.Payload.Cases) {
 				t.Fatalf("the invalid event was persisted")
 			}
 		})

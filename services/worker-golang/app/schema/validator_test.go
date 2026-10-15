@@ -3,6 +3,7 @@ package schema_test
 import (
 	"context"
 	"fmt"
+	"math"
 	"testing"
 
 	"safezone.service.worker-golang/app/pkg/logger"
@@ -65,6 +66,19 @@ func TestValidator_InvalidDateFormat(t *testing.T) {
 	}
 }
 
+func TestValidator_InvalidCalendarDate(t *testing.T) {
+	for _, date := range []string{"2026-13-45", "0000-01-01"} {
+		t.Run(date, func(t *testing.T) {
+			v := newValidator()
+			e := validEvent()
+			e.Payload.Date = date
+			if v.Validate(context.Background(), e) {
+				t.Fatalf("expected unstoreable date %q to fail", date)
+			}
+		})
+	}
+}
+
 func TestValidator_UnknownCityOrRegion(t *testing.T) {
 	v := newValidator()
 
@@ -87,5 +101,19 @@ func TestValidator_NegativeCases(t *testing.T) {
 	e.Payload.Cases = -1
 	if v.Validate(context.Background(), e) {
 		t.Fatal("expected negative cases to fail")
+	}
+}
+
+func TestValidator_CaseTableIntegerUpperBound(t *testing.T) {
+	v := newValidator()
+	e := validEvent()
+	e.Payload.Cases = math.MaxInt32
+	if !v.Validate(context.Background(), e) {
+		t.Fatal("expected the largest case-table integer to pass")
+	}
+
+	e.Payload.Cases = math.MaxInt32 + 1
+	if v.Validate(context.Background(), e) {
+		t.Fatal("expected a case count above the case-table integer range to fail")
 	}
 }
