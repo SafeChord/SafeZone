@@ -65,8 +65,8 @@ func newBroker(t *testing.T, partitions int32) *broker {
 // all partitions. Nothing may treat it as unique per event.
 const replayTrace = "trace-of-one-replay"
 
-// event builds a valid event whose case count is seq, so a test can tell events apart.
-func event(seq int, region string) schema.CovidEvent {
+// newEvent builds a valid event whose case count is seq, so a test can tell events apart.
+func newEvent(seq int, region string) schema.CovidEvent {
 	e := schema.CovidEvent{
 		EventType: "covid.case.reported",
 		TraceID:   replayTrace,

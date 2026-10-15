@@ -54,7 +54,7 @@ func TestWK_R2_LaterEventWinsWithinOneWrite(t *testing.T) {
 	mock.ExpectCommit()
 
 	const earlier, later = 111, 222
-	batch := []schema.CovidEvent{event(earlier, "region-0"), event(later, "region-0")}
+	batch := []schema.CovidEvent{newEvent(earlier, "region-0"), newEvent(later, "region-0")}
 	if err := sink.Flush(context.Background(), &batch); err != nil {
 		t.Fatalf("writing two events for one key failed: %v", err)
 	}
