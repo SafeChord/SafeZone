@@ -1,4 +1,4 @@
-package schema_test
+package event_test
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"math"
 	"testing"
 
-	"safezone.service.worker-golang/app/pkg/logger"
-	"safezone.service.worker-golang/app/schema"
+	"safezone.service.worker-golang/app/event"
+	"safezone.service.worker-golang/app/logger"
 )
 
 type mockCache struct {
@@ -30,19 +30,19 @@ func (m *mockCache) GetRegionID(cityID int, region string) int {
 	return -1
 }
 
-func newValidator() *schema.CovidValidator {
+func newValidator() *event.CovidValidator {
 	cache := &mockCache{
 		cities:  map[string]int{"Taipei": 1},
 		regions: map[string]int{"1|Zhongzheng": 10},
 	}
-	return schema.NewCovidValidator(
+	return event.NewCovidValidator(
 		logger.NewContextLogger("test", "0.0.0", "test"),
 		cache,
 	)
 }
 
-func validEvent() schema.CovidEvent {
-	e := schema.CovidEvent{TraceID: "t1"}
+func validEvent() event.CovidEvent {
+	e := event.CovidEvent{TraceID: "t1"}
 	e.Payload.Date = "2024-01-01"
 	e.Payload.City = "Taipei"
 	e.Payload.Region = "Zhongzheng"

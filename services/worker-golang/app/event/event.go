@@ -1,4 +1,4 @@
-package schema
+package event
 
 type CovidEvent struct {
 	EventType string `json:"event_type"`

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"safezone.service.worker-golang/app/schema"
+	"safezone.service.worker-golang/app/event"
 )
 
 // WK-R3: Progress is recorded only after persistence.
@@ -129,7 +129,7 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 // unstorable returns two events that pass a shape check but that the case table cannot hold
 // (#85): one whose date matches YYYY-MM-DD but is not a calendar date, and one whose case
 // count is one above the largest INTEGER. The event contract allows neither.
-func unstorable() (notADate, tooMany schema.CovidEvent) {
+func unstorable() (notADate, tooMany event.CovidEvent) {
 	notADate = newEvent(99, "region-0")
 	notADate.Payload.Date = "2026-13-45"
 	tooMany = newEvent(math.MaxInt32+1, "region-0")
@@ -146,7 +146,7 @@ func TestWK_R5_InvalidEventArrivingAloneIsNotDeliveredAgain(t *testing.T) {
 	unknownCity := newEvent(99, "region-0")
 	unknownCity.Payload.City = "Atlantis"
 	notADate, tooMany := unstorable()
-	marshal := func(e schema.CovidEvent) []byte {
+	marshal := func(e event.CovidEvent) []byte {
 		v, err := json.Marshal(e)
 		if err != nil {
 			t.Fatalf("marshal event: %v", err)

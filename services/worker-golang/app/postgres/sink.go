@@ -1,4 +1,4 @@
-package strategy
+package postgres
 
 import (
 	"context"
@@ -7,18 +7,17 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
 	"go.uber.org/zap"
-	"safezone.service.worker-golang/app/pkg/cache"
-	"safezone.service.worker-golang/app/pkg/logger"
-	"safezone.service.worker-golang/app/schema"
+	"safezone.service.worker-golang/app/event"
+	"safezone.service.worker-golang/app/logger"
 )
 
 type DBSink struct {
 	DB     *sqlx.DB
 	Logger *logger.ContextLogger
-	cache  *cache.Cache
+	cache  *Cache
 }
 
-func NewDBSink(logger *logger.ContextLogger, db *sqlx.DB, cache *cache.Cache) *DBSink {
+func NewDBSink(logger *logger.ContextLogger, db *sqlx.DB, cache *Cache) *DBSink {
 	return &DBSink{
 		Logger: logger,
 		DB:     db,
@@ -26,7 +25,7 @@ func NewDBSink(logger *logger.ContextLogger, db *sqlx.DB, cache *cache.Cache) *D
 	}
 }
 
-func (d *DBSink) Flush(ctx context.Context, buffer *[]schema.CovidEvent) error {
+func (d *DBSink) Flush(ctx context.Context, buffer *[]event.CovidEvent) error {
 	if buffer == nil || len(*buffer) == 0 {
 		return nil
 	}

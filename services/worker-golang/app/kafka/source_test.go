@@ -1,12 +1,12 @@
-package adapter_test
+package kafka_test
 
 import (
 	"testing"
 
 	"go.uber.org/zap"
 
-	"safezone.service.worker-golang/app/adapter"
-	"safezone.service.worker-golang/app/pkg/logger"
+	"safezone.service.worker-golang/app/kafka"
+	"safezone.service.worker-golang/app/logger"
 )
 
 func testLogger() *logger.ContextLogger {
@@ -15,10 +15,10 @@ func testLogger() *logger.ContextLogger {
 	return l
 }
 
-// TestNewKafkaSource_UnreachableBrokerReturnsError verifies that NewKafkaSource
+// TestNewSource_UnreachableBrokerReturnsError verifies that NewSource
 // returns an error (and nil source) when it cannot reach Kafka (WG-1).
-func TestNewKafkaSource_UnreachableBrokerReturnsError(t *testing.T) {
-	src, err := adapter.NewKafkaSource(testLogger(), "127.0.0.1:1", "test-group", "test-topic")
+func TestNewSource_UnreachableBrokerReturnsError(t *testing.T) {
+	src, err := kafka.NewSource(testLogger(), "127.0.0.1:1", "test-group", "test-topic")
 	if err == nil {
 		t.Fatal("expected error connecting to unreachable broker, got nil")
 	}

@@ -19,11 +19,11 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.uber.org/zap"
 
-	"safezone.service.worker-golang/app/adapter"
 	"safezone.service.worker-golang/app/config"
-	"safezone.service.worker-golang/app/pkg/logger"
-	"safezone.service.worker-golang/app/schema"
-	"safezone.service.worker-golang/app/service"
+	"safezone.service.worker-golang/app/event"
+	"safezone.service.worker-golang/app/kafka"
+	"safezone.service.worker-golang/app/logger"
+	"safezone.service.worker-golang/app/worker"
 )
 
 const (
@@ -66,8 +66,8 @@ func newBroker(t *testing.T, partitions int32) *broker {
 const replayTrace = "trace-of-one-replay"
 
 // newEvent builds a valid event whose case count is seq, so a test can tell events apart.
-func newEvent(seq int, region string) schema.CovidEvent {
-	e := schema.CovidEvent{
+func newEvent(seq int, region string) event.CovidEvent {
+	e := event.CovidEvent{
 		EventType: "covid.case.reported",
 		TraceID:   replayTrace,
 		Version:   "1.0",
@@ -89,7 +89,7 @@ func (b *broker) produce(t *testing.T, partition int32, value []byte) {
 	}
 }
 
-func (b *broker) produceEvent(t *testing.T, partition int32, e schema.CovidEvent) {
+func (b *broker) produceEvent(t *testing.T, partition int32, e event.CovidEvent) {
 	t.Helper()
 	v, err := json.Marshal(e)
 	if err != nil {
@@ -149,7 +149,7 @@ func newStore() *store {
 	return &store{cases: map[string]int{}, seen: map[int]bool{}, tried: map[int]bool{}}
 }
 
-func (s *store) Flush(ctx context.Context, buffer *[]schema.CovidEvent) error {
+func (s *store) Flush(ctx context.Context, buffer *[]event.CovidEvent) error {
 	s.mu.Lock()
 	s.attempts++
 	for _, e := range *buffer {
@@ -188,7 +188,7 @@ func (s *store) Close(context.Context) error { return nil }
 
 // fitsCaseTable reports why the case table (contract/schema.sql) cannot hold an event:
 // `date` is a DATE and `cases` an INTEGER.
-func fitsCaseTable(e schema.CovidEvent) error {
+func fitsCaseTable(e event.CovidEvent) error {
 	if _, err := time.Parse(time.DateOnly, e.Payload.Date); err != nil {
 		return fmt.Errorf("date/time field value out of range: %q", e.Payload.Date)
 	}
@@ -275,14 +275,14 @@ func startWorker(t *testing.T, b *broker, o workerOpts) *running {
 	t.Helper()
 	log := quietLogger()
 	// #64: the constructor reports failure as an error, never as a nil source.
-	src, err := adapter.NewKafkaSource(log, b.addr, group, topic)
+	src, err := kafka.NewSource(log, b.addr, group, topic)
 	if err != nil {
 		t.Fatalf("worker %d: kafka source: %v", o.id, err)
 	}
 	if o.flushInterval == 0 {
 		o.flushInterval = 50 * time.Millisecond
 	}
-	w := &service.Worker{
+	w := &worker.Worker{
 		Source: src,
 		Sink:   o.sink,
 		Config: &config.Config{BatchSize: o.batch, FlushInterval: o.flushInterval},
@@ -290,7 +290,7 @@ func startWorker(t *testing.T, b *broker, o workerOpts) *running {
 		ID:     o.id,
 	}
 	if o.validate {
-		w.Validator = schema.NewCovidValidator(log, areas{})
+		w.Validator = event.NewCovidValidator(log, areas{})
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &running{cancel: cancel, done: make(chan struct{})}

@@ -1,4 +1,4 @@
-package adapter_test
+package kafka_test
 
 import (
 	"bytes"
@@ -10,11 +10,11 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"safezone.service.worker-golang/app/adapter"
-	"safezone.service.worker-golang/app/pkg/logger"
+	"safezone.service.worker-golang/app/kafka"
+	"safezone.service.worker-golang/app/logger"
 )
 
-func TestNewKafkaSourceWithContextLogsWorkerIDOnConnectionFailure(t *testing.T) {
+func TestNewSourceWithContextLogsWorkerIDOnConnectionFailure(t *testing.T) {
 	var output bytes.Buffer
 	encoder := zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig())
 	core := zapcore.NewCore(encoder, zapcore.AddSync(&output), zapcore.ErrorLevel)
@@ -25,7 +25,7 @@ func TestNewKafkaSourceWithContextLogsWorkerIDOnConnectionFailure(t *testing.T) 
 	}
 	ctx := context.WithValue(context.Background(), log.WorkerIDKey, "worker-9")
 
-	source, err := adapter.NewKafkaSourceWithContext(ctx, log, "127.0.0.1:1", "test-group", "test-topic")
+	source, err := kafka.NewSourceWithContext(ctx, log, "127.0.0.1:1", "test-group", "test-topic")
 	if err == nil {
 		t.Fatal("expected unreachable Kafka broker to fail")
 	}

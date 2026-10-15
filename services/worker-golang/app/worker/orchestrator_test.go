@@ -1,4 +1,4 @@
-package service_test
+package worker_test
 
 import (
 	"context"
@@ -6,14 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"safezone.service.worker-golang/app/adapter"
 	"safezone.service.worker-golang/app/config"
-	"safezone.service.worker-golang/app/service"
-	"safezone.service.worker-golang/app/strategy"
+	"safezone.service.worker-golang/app/worker"
 )
 
-func newOrchestratorTestWorker(id int, src adapter.EventSource, sink strategy.EventSink) *service.Worker {
-	return &service.Worker{
+func newOrchestratorTestWorker(id int, src worker.EventSource, sink worker.EventSink) *worker.Worker {
+	return &worker.Worker{
 		Source: src,
 		Sink:   sink,
 		Config: &config.Config{
@@ -29,12 +27,12 @@ func newOrchestratorTestWorker(id int, src adapter.EventSource, sink strategy.Ev
 // exits with an error, the remaining workers are stopped via context cancellation and
 // the error is returned to the caller.
 func TestRunWorkers_WorkerErrorStopsOthersAndReturnsError(t *testing.T) {
-	src0 := adapter.NewMockSource()
-	sink0 := &strategy.MockSink{}
+	src0 := NewMockSource()
+	sink0 := &MockSink{}
 	w0 := newOrchestratorTestWorker(0, src0, sink0)
 
-	src1 := adapter.NewMockSource()
-	sink1 := &strategy.MockSink{}
+	src1 := NewMockSource()
+	sink1 := &MockSink{}
 	w1 := newOrchestratorTestWorker(1, src1, sink1)
 
 	expectedErr := errors.New("fatal database connection lost")
@@ -43,7 +41,7 @@ func TestRunWorkers_WorkerErrorStopsOthersAndReturnsError(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- service.RunWorkers(context.Background(), []*service.Worker{w0, w1}, 2)
+		done <- worker.RunWorkers(context.Background(), []*worker.Worker{w0, w1}, 2)
 	}()
 
 	select {
@@ -63,18 +61,18 @@ func TestRunWorkers_WorkerErrorStopsOthersAndReturnsError(t *testing.T) {
 // context is canceled (simulating SIGTERM/SIGINT), RunWorkers terminates gracefully
 // and returns nil (status 0 exit).
 func TestRunWorkers_SignalContextCancellationReturnsNil(t *testing.T) {
-	src0 := adapter.NewMockSource()
-	sink0 := &strategy.MockSink{}
+	src0 := NewMockSource()
+	sink0 := &MockSink{}
 	w0 := newOrchestratorTestWorker(0, src0, sink0)
 
-	src1 := adapter.NewMockSource()
-	sink1 := &strategy.MockSink{}
+	src1 := NewMockSource()
+	sink1 := &MockSink{}
 	w1 := newOrchestratorTestWorker(1, src1, sink1)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	time.AfterFunc(50*time.Millisecond, cancel)
 
-	err := service.RunWorkers(ctx, []*service.Worker{w0, w1}, 2)
+	err := worker.RunWorkers(ctx, []*worker.Worker{w0, w1}, 2)
 	if err != nil {
 		t.Fatalf("expected nil error on signal cancellation, got %v", err)
 	}

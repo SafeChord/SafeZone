@@ -1,4 +1,4 @@
-package adapter
+package kafka
 
 import (
 	"context"
@@ -11,11 +11,11 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.uber.org/zap"
-	"safezone.service.worker-golang/app/pkg/logger"
-	"safezone.service.worker-golang/app/schema"
+	"safezone.service.worker-golang/app/event"
+	"safezone.service.worker-golang/app/logger"
 )
 
-type KafkaSource struct {
+type Source struct {
 	Logger      *logger.ContextLogger
 	Client      *kgo.Client
 	mu          sync.Mutex
@@ -23,13 +23,13 @@ type KafkaSource struct {
 	assigned    map[int32]bool
 }
 
-func NewKafkaSource(logger *logger.ContextLogger, brokers string, groupID string, topic string) (*KafkaSource, error) {
-	return NewKafkaSourceWithContext(context.Background(), logger, brokers, groupID, topic)
+func NewSource(logger *logger.ContextLogger, brokers string, groupID string, topic string) (*Source, error) {
+	return NewSourceWithContext(context.Background(), logger, brokers, groupID, topic)
 }
 
-// NewKafkaSourceWithContext logs startup messages with the supplied context.
-func NewKafkaSourceWithContext(ctx context.Context, logger *logger.ContextLogger, brokers string, groupID string, topic string) (*KafkaSource, error) {
-	src := &KafkaSource{
+// NewSourceWithContext logs startup messages with the supplied context.
+func NewSourceWithContext(ctx context.Context, logger *logger.ContextLogger, brokers string, groupID string, topic string) (*Source, error) {
+	src := &Source{
 		Logger:      logger,
 		uncommitted: make(map[int32]*kgo.Record),
 		assigned:    make(map[int32]bool),
@@ -95,7 +95,7 @@ func NewKafkaSourceWithContext(ctx context.Context, logger *logger.ContextLogger
 	return src, nil
 }
 
-func (k *KafkaSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, error) {
+func (k *Source) Poll(ctx context.Context, max int) ([]event.CovidEvent, error) {
 	if max <= 0 {
 		max = 100
 	}
@@ -108,9 +108,9 @@ func (k *KafkaSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, e
 
 		records := fetches.Records()
 		if len(records) > 0 {
-			events := make([]schema.CovidEvent, 0, len(records))
+			events := make([]event.CovidEvent, 0, len(records))
 			for _, record := range records {
-				var event schema.CovidEvent
+				var event event.CovidEvent
 				if err := json.Unmarshal(record.Value, &event); err != nil {
 					k.Logger.Warn(ctx, "Failed to unmarshal event, skipping malformed record",
 						zap.Error(err),
@@ -166,13 +166,13 @@ func (k *KafkaSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, e
 	}
 }
 
-func (k *KafkaSource) AllowRebalance() {
+func (k *Source) AllowRebalance() {
 	if k.Client != nil {
 		k.Client.AllowRebalance()
 	}
 }
 
-func (k *KafkaSource) Commit(ctx context.Context) error {
+func (k *Source) Commit(ctx context.Context) error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
@@ -203,7 +203,7 @@ func (k *KafkaSource) Commit(ctx context.Context) error {
 	return nil
 }
 
-func (k *KafkaSource) Close(ctx context.Context) error {
+func (k *Source) Close(ctx context.Context) error {
 	k.Logger.Info(ctx, "Closing Kafka client")
 	if k.Client != nil {
 		k.Client.CloseAllowingRebalance()
