@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"safezone.service.worker-golang/app/config"
-	"safezone.service.worker-golang/app/pkg/logger"
-	"safezone.service.worker-golang/app/service"
+	"safezone.service.worker-golang/app/logger"
+	"safezone.service.worker-golang/app/worker"
 )
 
 // TestSignalNotify_SIGTERMCancelsContext verifies that SIGTERM is registered
@@ -41,7 +41,7 @@ func TestMainExitsAndLogsAreaCacheStartupFailure(t *testing.T) {
 	const childFlag = "SAFEZONE_TEST_CACHE_STARTUP_FAILURE"
 	const cause = "failed to load area tables: city query: connection reset"
 	if os.Getenv(childFlag) == "1" {
-		newWorker = func(int, *config.Config, *logger.ContextLogger) (*service.Worker, error) {
+		newWorker = func(int, *config.Config, *logger.ContextLogger) (*worker.Worker, error) {
 			return nil, errors.New(cause)
 		}
 		main()

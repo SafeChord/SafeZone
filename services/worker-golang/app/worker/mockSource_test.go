@@ -1,14 +1,14 @@
-package adapter
+package worker_test
 
 import (
 	"context"
 	"sync"
 
-	"safezone.service.worker-golang/app/schema"
+	"safezone.service.worker-golang/app/event"
 )
 
 type mockResult struct {
-	event *schema.CovidEvent
+	event *event.CovidEvent
 	err   error
 }
 
@@ -25,7 +25,7 @@ func NewMockSource() *MockSource {
 	return &MockSource{ch: make(chan mockResult, 100)}
 }
 
-func (m *MockSource) Push(event *schema.CovidEvent) {
+func (m *MockSource) Push(event *event.CovidEvent) {
 	m.ch <- mockResult{event: event}
 }
 
@@ -33,7 +33,7 @@ func (m *MockSource) PushError(err error) {
 	m.ch <- mockResult{err: err}
 }
 
-func (m *MockSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, error) {
+func (m *MockSource) Poll(ctx context.Context, max int) ([]event.CovidEvent, error) {
 	if max <= 0 {
 		max = 1
 	}
@@ -42,7 +42,7 @@ func (m *MockSource) Poll(ctx context.Context, max int) ([]schema.CovidEvent, er
 		if r.err != nil {
 			return nil, r.err
 		}
-		events := []schema.CovidEvent{*r.event}
+		events := []event.CovidEvent{*r.event}
 		for len(events) < max {
 			select {
 			case next := <-m.ch:

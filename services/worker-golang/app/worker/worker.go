@@ -1,4 +1,4 @@
-package service
+package worker
 
 import (
 	"context"
@@ -8,20 +8,18 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"go.uber.org/zap"
-	"safezone.service.worker-golang/app/adapter"
 	"safezone.service.worker-golang/app/config"
-	"safezone.service.worker-golang/app/pkg/cache"
-	"safezone.service.worker-golang/app/pkg/logger"
-	"safezone.service.worker-golang/app/schema"
-	"safezone.service.worker-golang/app/strategy"
+	"safezone.service.worker-golang/app/event"
+	"safezone.service.worker-golang/app/logger"
+	"safezone.service.worker-golang/app/postgres"
 )
 
 type Worker struct {
-	DB        *sqlx.DB               // database connection, if needed
-	Cache     *cache.Cache           // cache for city and region mappings
-	Validator *schema.CovidValidator // validator for events
-	Source    adapter.EventSource
-	Sink      strategy.EventSink
+	DB        *sqlx.DB              // database connection, if needed
+	Cache     *postgres.Cache       // cache for city and region mappings
+	Validator *event.CovidValidator // validator for events
+	Source    EventSource
+	Sink      EventSink
 	Config    *config.Config
 	Logger    *logger.ContextLogger // logger for logging events
 	ID        int                   // worker ID for logging and identification
@@ -32,7 +30,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	w.Logger.Info(workerCtx, "Starting worker", zap.String("event", "Worker started"))
 
 	var (
-		inFlight       []schema.CovidEvent
+		inFlight       []event.CovidEvent
 		inFlightPolled bool
 	)
 
@@ -95,7 +93,7 @@ func (w *Worker) Run(ctx context.Context) error {
 		}
 
 		// 2. Parse and validate them. Invalid ones are skipped but still count as read.
-		validEvents := make([]schema.CovidEvent, 0, len(events))
+		validEvents := make([]event.CovidEvent, 0, len(events))
 		for _, event := range events {
 			logCtx := context.WithValue(workerCtx, w.Logger.TraceIDKey, event.TraceID)
 			if w.Validator != nil && !w.Validator.Validate(logCtx, event) {

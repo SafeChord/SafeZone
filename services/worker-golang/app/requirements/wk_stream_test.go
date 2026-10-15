@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"safezone.service.worker-golang/app/schema"
+	"safezone.service.worker-golang/app/event"
 )
 
 // WK-R3: Progress is recorded only after persistence.
@@ -16,7 +16,7 @@ func TestWK_R3_EventsNotPersistedAreDeliveredAgain(t *testing.T) {
 	const n = 30
 	b := newBroker(t, 1)
 	for i := 0; i < n; i++ {
-		b.produceEvent(t, 0, event(i, "region-0"))
+		b.produceEvent(t, 0, newEvent(i, "region-0"))
 	}
 
 	down := newStore()
@@ -39,7 +39,7 @@ func TestWK_R3_EventsNotPersistedAreDeliveredAgain(t *testing.T) {
 // WK-R5: An invalid event never blocks the stream.
 // Scenario: invalid event between valid ones.
 func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
-	unknownCity := event(99, "region-0")
+	unknownCity := newEvent(99, "region-0")
 	unknownCity.Payload.City = "Atlantis"
 	notADate, tooMany := unstorable()
 
@@ -52,9 +52,9 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 		{
 			name: "event that cannot be parsed",
 			produce: func(t *testing.T, b *broker) {
-				b.produceEvent(t, 0, event(1, "region-0"))
+				b.produceEvent(t, 0, newEvent(1, "region-0"))
 				b.produce(t, 0, []byte("{not json"))
-				b.produceEvent(t, 0, event(2, "region-0"))
+				b.produceEvent(t, 0, newEvent(2, "region-0"))
 			},
 			valid: []int{1, 2},
 			end:   3,
@@ -62,9 +62,9 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 		{
 			name: "event naming an unknown city",
 			produce: func(t *testing.T, b *broker) {
-				b.produceEvent(t, 0, event(1, "region-0"))
+				b.produceEvent(t, 0, newEvent(1, "region-0"))
 				b.produceEvent(t, 0, unknownCity)
-				b.produceEvent(t, 0, event(2, "region-0"))
+				b.produceEvent(t, 0, newEvent(2, "region-0"))
 			},
 			valid: []int{1, 2},
 			end:   3,
@@ -72,9 +72,9 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 		{
 			name: "event whose date is not a calendar date",
 			produce: func(t *testing.T, b *broker) {
-				b.produceEvent(t, 0, event(1, "region-0"))
+				b.produceEvent(t, 0, newEvent(1, "region-0"))
 				b.produceEvent(t, 0, notADate)
-				b.produceEvent(t, 0, event(2, "region-0"))
+				b.produceEvent(t, 0, newEvent(2, "region-0"))
 			},
 			valid: []int{1, 2},
 			end:   3,
@@ -82,9 +82,9 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 		{
 			name: "event whose cases exceed the table's integer",
 			produce: func(t *testing.T, b *broker) {
-				b.produceEvent(t, 0, event(1, "region-0"))
+				b.produceEvent(t, 0, newEvent(1, "region-0"))
 				b.produceEvent(t, 0, tooMany)
-				b.produceEvent(t, 0, event(2, "region-0"))
+				b.produceEvent(t, 0, newEvent(2, "region-0"))
 			},
 			valid: []int{1, 2},
 			end:   3,
@@ -92,7 +92,7 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 		{
 			name: "invalid event is the last one read",
 			produce: func(t *testing.T, b *broker) {
-				b.produceEvent(t, 0, event(1, "region-0"))
+				b.produceEvent(t, 0, newEvent(1, "region-0"))
 				b.produceEvent(t, 0, unknownCity)
 			},
 			valid: []int{1},
@@ -129,10 +129,10 @@ func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {
 // unstorable returns two events that pass a shape check but that the case table cannot hold
 // (#85): one whose date matches YYYY-MM-DD but is not a calendar date, and one whose case
 // count is one above the largest INTEGER. The event contract allows neither.
-func unstorable() (notADate, tooMany schema.CovidEvent) {
-	notADate = event(99, "region-0")
+func unstorable() (notADate, tooMany event.CovidEvent) {
+	notADate = newEvent(99, "region-0")
 	notADate.Payload.Date = "2026-13-45"
-	tooMany = event(math.MaxInt32+1, "region-0")
+	tooMany = newEvent(math.MaxInt32+1, "region-0")
 	return notADate, tooMany
 }
 
@@ -143,10 +143,10 @@ func unstorable() (notADate, tooMany schema.CovidEvent) {
 // uncommitted it is delivered again after every restart, and the group reports a lag that
 // never drains.
 func TestWK_R5_InvalidEventArrivingAloneIsNotDeliveredAgain(t *testing.T) {
-	unknownCity := event(99, "region-0")
+	unknownCity := newEvent(99, "region-0")
 	unknownCity.Payload.City = "Atlantis"
 	notADate, tooMany := unstorable()
-	marshal := func(e schema.CovidEvent) []byte {
+	marshal := func(e event.CovidEvent) []byte {
 		v, err := json.Marshal(e)
 		if err != nil {
 			t.Fatalf("marshal event: %v", err)
@@ -168,7 +168,7 @@ func TestWK_R5_InvalidEventArrivingAloneIsNotDeliveredAgain(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			b := newBroker(t, 1)
 			db := newStore()
-			b.produceEvent(t, 0, event(1, "region-0"))
+			b.produceEvent(t, 0, newEvent(1, "region-0"))
 			startWorker(t, b, workerOpts{sink: db, batch: 10, validate: true})
 			eventually(t, 20*time.Second, "the valid event to be persisted and committed", func() bool {
 				return db.has(1) && b.committedAt(t, 0) == 1
@@ -197,7 +197,7 @@ func TestWK_R6_ShutdownPersistsHeldEventsAndLeavesGroup(t *testing.T) {
 	const n = 5
 	b := newBroker(t, 1)
 	for i := 0; i < n; i++ {
-		b.produceEvent(t, 0, event(i, "region-0"))
+		b.produceEvent(t, 0, newEvent(i, "region-0"))
 	}
 
 	db := newStore()

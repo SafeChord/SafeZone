@@ -1,25 +1,25 @@
-package strategy
+package worker_test
 
 import (
 	"context"
 	"sync"
 
-	"safezone.service.worker-golang/app/schema"
+	"safezone.service.worker-golang/app/event"
 )
 
 // MockSink captures Flush calls for test assertions.
 // Set FlushError to inject errors.
 type MockSink struct {
 	mu         sync.Mutex
-	Flushed    [][]schema.CovidEvent
+	Flushed    [][]event.CovidEvent
 	FlushError error
 }
 
-func (m *MockSink) Flush(ctx context.Context, buffer *[]schema.CovidEvent) error {
+func (m *MockSink) Flush(ctx context.Context, buffer *[]event.CovidEvent) error {
 	if m.FlushError != nil {
 		return m.FlushError
 	}
-	snapshot := make([]schema.CovidEvent, len(*buffer))
+	snapshot := make([]event.CovidEvent, len(*buffer))
 	copy(snapshot, *buffer)
 	m.mu.Lock()
 	m.Flushed = append(m.Flushed, snapshot)

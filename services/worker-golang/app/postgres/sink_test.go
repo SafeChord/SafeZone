@@ -1,4 +1,4 @@
-package strategy_test
+package postgres_test
 
 import (
 	"context"
@@ -10,10 +10,9 @@ import (
 	"github.com/jmoiron/sqlx"
 	"go.uber.org/zap"
 
-	"safezone.service.worker-golang/app/pkg/cache"
-	"safezone.service.worker-golang/app/pkg/logger"
-	"safezone.service.worker-golang/app/schema"
-	"safezone.service.worker-golang/app/strategy"
+	"safezone.service.worker-golang/app/event"
+	"safezone.service.worker-golang/app/logger"
+	"safezone.service.worker-golang/app/postgres"
 )
 
 func testLogger() *logger.ContextLogger {
@@ -22,17 +21,17 @@ func testLogger() *logger.ContextLogger {
 	return l
 }
 
-func testCache(t *testing.T, db *sqlx.DB) *cache.Cache {
+func testCache(t *testing.T, db *sqlx.DB) *postgres.Cache {
 	t.Helper()
-	areas, err := cache.NewCache(db)
+	areas, err := postgres.NewCache(db)
 	if err != nil {
 		t.Fatalf("loading area tables: %v", err)
 	}
 	return areas
 }
 
-func makeEvent(date, city, region string, cases int) schema.CovidEvent {
-	var e schema.CovidEvent
+func makeEvent(date, city, region string, cases int) event.CovidEvent {
+	var e event.CovidEvent
 	e.EventType = "covid.case.reported"
 	e.TraceID = "trace-test"
 	e.Version = "1.0"
@@ -58,7 +57,7 @@ func TestDBSink_CommitFailureKeepsBuffer(t *testing.T) {
 	mock.ExpectQuery("FROM regions").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "city_id"}).AddRow(10, "Zhongzheng", 1))
 
-	sink := strategy.NewDBSink(testLogger(), db, testCache(t, db))
+	sink := postgres.NewDBSink(testLogger(), db, testCache(t, db))
 
 	mock.ExpectBegin()
 	mock.ExpectExec("covid_cases").
@@ -66,7 +65,7 @@ func TestDBSink_CommitFailureKeepsBuffer(t *testing.T) {
 	commitErr := errors.New("disk full on commit")
 	mock.ExpectCommit().WillReturnError(commitErr)
 
-	buffer := []schema.CovidEvent{
+	buffer := []event.CovidEvent{
 		makeEvent("2024-01-01", "Taipei", "Zhongzheng", 10),
 	}
 
@@ -98,14 +97,14 @@ func TestDBSink_ExecFailureKeepsBuffer(t *testing.T) {
 	mock.ExpectQuery("FROM regions").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "city_id"}).AddRow(10, "Zhongzheng", 1))
 
-	sink := strategy.NewDBSink(testLogger(), db, testCache(t, db))
+	sink := postgres.NewDBSink(testLogger(), db, testCache(t, db))
 
 	execErr := errors.New("syntax error or connection lost")
 	mock.ExpectBegin()
 	mock.ExpectExec("covid_cases").WillReturnError(execErr)
 	mock.ExpectRollback()
 
-	buffer := []schema.CovidEvent{
+	buffer := []event.CovidEvent{
 		makeEvent("2024-01-01", "Taipei", "Zhongzheng", 10),
 	}
 
@@ -136,9 +135,9 @@ func TestDBSink_EmptyBufferNoop(t *testing.T) {
 	mock.ExpectQuery("FROM regions").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "city_id"}).AddRow(10, "Zhongzheng", 1))
 
-	sink := strategy.NewDBSink(testLogger(), db, testCache(t, db))
+	sink := postgres.NewDBSink(testLogger(), db, testCache(t, db))
 
-	buffer := []schema.CovidEvent{}
+	buffer := []event.CovidEvent{}
 	if err := sink.Flush(context.Background(), &buffer); err != nil {
 		t.Fatalf("expected nil on empty buffer, got %v", err)
 	}
@@ -162,7 +161,7 @@ func TestDBSink_LastWinsDedupe(t *testing.T) {
 	mock.ExpectQuery("FROM regions").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "city_id"}).AddRow(10, "Zhongzheng", 1))
 
-	sink := strategy.NewDBSink(testLogger(), db, testCache(t, db))
+	sink := postgres.NewDBSink(testLogger(), db, testCache(t, db))
 
 	mock.ExpectBegin()
 	// Only ONE row should be inserted, with cases = 20 (the later event)
@@ -171,7 +170,7 @@ func TestDBSink_LastWinsDedupe(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	buffer := []schema.CovidEvent{
+	buffer := []event.CovidEvent{
 		makeEvent("2024-01-01", "Taipei", "Zhongzheng", 10),
 		makeEvent("2024-01-01", "Taipei", "Zhongzheng", 20),
 	}

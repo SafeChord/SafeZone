@@ -19,7 +19,7 @@ func TestWK_R4_MembershipChangeNeverRewindsCommittedOffset(t *testing.T) {
 	b := newBroker(t, partitions)
 	for p := int32(0); p < partitions; p++ {
 		for i := 0; i < perPartition; i++ {
-			b.produceEvent(t, p, event(int(p)*perPartition+i, fmt.Sprintf("region-%d", p)))
+			b.produceEvent(t, p, newEvent(int(p)*perPartition+i, fmt.Sprintf("region-%d", p)))
 		}
 	}
 

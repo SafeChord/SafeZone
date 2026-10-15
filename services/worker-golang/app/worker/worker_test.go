@@ -1,4 +1,4 @@
-package service_test
+package worker_test
 
 import (
 	"context"
@@ -7,20 +7,18 @@ import (
 	"testing"
 	"time"
 
-	"safezone.service.worker-golang/app/adapter"
 	"safezone.service.worker-golang/app/config"
-	"safezone.service.worker-golang/app/pkg/logger"
-	"safezone.service.worker-golang/app/schema"
-	"safezone.service.worker-golang/app/service"
-	"safezone.service.worker-golang/app/strategy"
+	"safezone.service.worker-golang/app/event"
+	"safezone.service.worker-golang/app/logger"
+	"safezone.service.worker-golang/app/worker"
 )
 
 func testLogger() *logger.ContextLogger {
 	return logger.NewContextLogger("test", "0.0.0", "test")
 }
 
-func newTestWorker(src adapter.EventSource, sink strategy.EventSink) *service.Worker {
-	return &service.Worker{
+func newTestWorker(src worker.EventSource, sink worker.EventSink) *worker.Worker {
+	return &worker.Worker{
 		Source: src,
 		Sink:   sink,
 		Config: &config.Config{
@@ -32,8 +30,8 @@ func newTestWorker(src adapter.EventSource, sink strategy.EventSink) *service.Wo
 	}
 }
 
-func makeEvent(i int) *schema.CovidEvent {
-	e := &schema.CovidEvent{
+func makeEvent(i int) *event.CovidEvent {
+	e := &event.CovidEvent{
 		EventType: "test",
 		TraceID:   fmt.Sprintf("trace-%d", i),
 	}
@@ -44,7 +42,7 @@ func makeEvent(i int) *schema.CovidEvent {
 	return e
 }
 
-func runAsync(ctx context.Context, w *service.Worker) <-chan error {
+func runAsync(ctx context.Context, w *worker.Worker) <-chan error {
 	done := make(chan error, 1)
 	go func() { done <- w.Run(ctx) }()
 	return done
@@ -52,8 +50,8 @@ func runAsync(ctx context.Context, w *service.Worker) <-chan error {
 
 // TestWorker_BatchFlush: exactly BatchSize events → one flush with all events
 func TestWorker_BatchFlush(t *testing.T) {
-	src := adapter.NewMockSource()
-	sink := &strategy.MockSink{}
+	src := NewMockSource()
+	sink := &MockSink{}
 	w := newTestWorker(src, sink)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -76,8 +74,8 @@ func TestWorker_BatchFlush(t *testing.T) {
 
 // TestWorker_TimeoutFlush: events < BatchSize → FlushInterval triggers flush
 func TestWorker_TimeoutFlush(t *testing.T) {
-	src := adapter.NewMockSource()
-	sink := &strategy.MockSink{}
+	src := NewMockSource()
+	sink := &MockSink{}
 	w := newTestWorker(src, sink)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -104,8 +102,8 @@ func TestWorker_TimeoutFlush(t *testing.T) {
 
 // TestWorker_EmptyBufferOnTimeout: no events → timeout fires but no flush
 func TestWorker_EmptyBufferOnTimeout(t *testing.T) {
-	src := adapter.NewMockSource()
-	sink := &strategy.MockSink{}
+	src := NewMockSource()
+	sink := &MockSink{}
 	w := newTestWorker(src, sink)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -122,8 +120,8 @@ func TestWorker_EmptyBufferOnTimeout(t *testing.T) {
 
 // TestWorker_GracefulShutdown: cancel with buffered events → deferred flush
 func TestWorker_GracefulShutdown(t *testing.T) {
-	src := adapter.NewMockSource()
-	sink := &strategy.MockSink{}
+	src := NewMockSource()
+	sink := &MockSink{}
 	w := newTestWorker(src, sink)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -146,8 +144,8 @@ func TestWorker_GracefulShutdown(t *testing.T) {
 
 // TestWorker_ValidationReject: invalid events skipped, valid events processed
 func TestWorker_ValidationReject(t *testing.T) {
-	src := adapter.NewMockSource()
-	sink := &strategy.MockSink{}
+	src := NewMockSource()
+	sink := &MockSink{}
 	w := newTestWorker(src, sink)
 
 	// wire up a validator with a mock cache that knows one valid city/region
@@ -155,7 +153,7 @@ func TestWorker_ValidationReject(t *testing.T) {
 		cities:  map[string]int{"Taipei": 1},
 		regions: map[string]int{"1|Zhongzheng": 10},
 	}
-	w.Validator = schema.NewCovidValidator(testLogger(), mockCache)
+	w.Validator = event.NewCovidValidator(testLogger(), mockCache)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := runAsync(ctx, w)
@@ -181,8 +179,8 @@ func TestWorker_ValidationReject(t *testing.T) {
 
 // TestWorker_SourceError: non-context error from source → worker returns error
 func TestWorker_SourceError(t *testing.T) {
-	src := adapter.NewMockSource()
-	sink := &strategy.MockSink{}
+	src := NewMockSource()
+	sink := &MockSink{}
 	w := newTestWorker(src, sink)
 
 	done := runAsync(context.Background(), w)
@@ -196,9 +194,9 @@ func TestWorker_SourceError(t *testing.T) {
 
 // TestWorker_TimeoutFlushError verifies that a Flush failure on the timeout path returns an error (WG-8).
 func TestWorker_TimeoutFlushError(t *testing.T) {
-	src := adapter.NewMockSource()
+	src := NewMockSource()
 	flushErr := errors.New("db down on timeout flush")
-	sink := &strategy.MockSink{FlushError: flushErr}
+	sink := &MockSink{FlushError: flushErr}
 	w := newTestWorker(src, sink)
 
 	done := runAsync(context.Background(), w)
@@ -216,9 +214,9 @@ func TestWorker_TimeoutFlushError(t *testing.T) {
 
 // TestWorker_BatchFlushError verifies that a Flush failure on batch size path returns an error.
 func TestWorker_BatchFlushError(t *testing.T) {
-	src := adapter.NewMockSource()
+	src := NewMockSource()
 	flushErr := errors.New("db down on batch flush")
-	sink := &strategy.MockSink{FlushError: flushErr}
+	sink := &MockSink{FlushError: flushErr}
 	w := newTestWorker(src, sink)
 
 	done := runAsync(context.Background(), w)
@@ -238,8 +236,8 @@ func TestWorker_BatchFlushError(t *testing.T) {
 
 // TestWorker_CommitCalledAfterSuccessfulFlush verifies offsets are committed after flush.
 func TestWorker_CommitCalledAfterSuccessfulFlush(t *testing.T) {
-	src := adapter.NewMockSource()
-	sink := &strategy.MockSink{}
+	src := NewMockSource()
+	sink := &MockSink{}
 	w := newTestWorker(src, sink)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -261,7 +259,7 @@ func TestWorker_CommitCalledAfterSuccessfulFlush(t *testing.T) {
 	}
 }
 
-// mockCacheReader satisfies schema.CacheReader for validator tests
+// mockCacheReader satisfies event.CacheReader for validator tests
 type mockCacheReader struct {
 	cities  map[string]int
 	regions map[string]int // key: "cityID|regionName"

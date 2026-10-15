@@ -21,8 +21,8 @@ func TestWK_R2_HeldEventsDoNotOverwriteNewerOnesAfterRebalance(t *testing.T) {
 	db := newStore()
 
 	// One event per partition. The first worker is slow to persist: it holds what it reads.
-	b.produceEvent(t, 0, event(oldP0, "region-0"))
-	b.produceEvent(t, 1, event(oldP1, "region-1"))
+	b.produceEvent(t, 0, newEvent(oldP0, "region-0"))
+	b.produceEvent(t, 1, newEvent(oldP1, "region-1"))
 	startWorker(t, b, workerOpts{id: 0, sink: db, batch: 1000, flushInterval: 8 * time.Second})
 	eventually(t, 20*time.Second, "the first worker to join the group", func() bool { return b.members() == 1 })
 	time.Sleep(time.Second) // let it read both events
@@ -34,8 +34,8 @@ func TestWK_R2_HeldEventsDoNotOverwriteNewerOnesAfterRebalance(t *testing.T) {
 	})
 
 	// A newer event arrives for each key.
-	b.produceEvent(t, 0, event(newP0, "region-0"))
-	b.produceEvent(t, 1, event(newP1, "region-1"))
+	b.produceEvent(t, 0, newEvent(newP0, "region-0"))
+	b.produceEvent(t, 1, newEvent(newP1, "region-1"))
 
 	// Everything read, persisted and committed: both workers have written all they held.
 	eventually(t, 60*time.Second, "both newer events to be persisted and both partitions committed to log-end", func() bool {

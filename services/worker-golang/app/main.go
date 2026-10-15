@@ -11,8 +11,8 @@ import (
 	"go.uber.org/zap"
 
 	"safezone.service.worker-golang/app/config"
-	"safezone.service.worker-golang/app/pkg/logger"
-	"safezone.service.worker-golang/app/service"
+	"safezone.service.worker-golang/app/logger"
+	"safezone.service.worker-golang/app/worker"
 )
 
 // setupSignalContext returns a context that is canceled when SIGINT or SIGTERM is received.
@@ -20,7 +20,7 @@ func setupSignalContext() (context.Context, context.CancelFunc) {
 	return signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 }
 
-var newWorker = service.NewWorker
+var newWorker = worker.NewWorker
 
 func main() {
 	cfg, err := config.Load()
@@ -35,7 +35,7 @@ func main() {
 	log := logger.NewContextLogger(cfg.ServiceName, cfg.ServiceVersion, cfg.Environment)
 	log.Info(ctx, "Worker-golang service started")
 
-	workers := make([]*service.Worker, 0, cfg.WorkerCount)
+	workers := make([]*worker.Worker, 0, cfg.WorkerCount)
 	for i := 0; i < cfg.WorkerCount; i++ {
 		w, err := newWorker(i, cfg, log)
 		if err != nil {
@@ -46,7 +46,7 @@ func main() {
 		workers = append(workers, w)
 	}
 
-	if err := service.RunWorkers(ctx, workers, cfg.ParallelN); err != nil {
+	if err := worker.RunWorkers(ctx, workers, cfg.ParallelN); err != nil {
 		log.Error(ctx, "Worker-golang service exited with error", zap.Error(err))
 		os.Exit(1)
 	}

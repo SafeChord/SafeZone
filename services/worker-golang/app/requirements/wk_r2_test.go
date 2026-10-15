@@ -8,9 +8,8 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
 
-	"safezone.service.worker-golang/app/pkg/cache"
-	"safezone.service.worker-golang/app/schema"
-	"safezone.service.worker-golang/app/strategy"
+	"safezone.service.worker-golang/app/event"
+	"safezone.service.worker-golang/app/postgres"
 )
 
 // written records every value a statement sends to the database.
@@ -39,11 +38,11 @@ func TestWK_R2_LaterEventWinsWithinOneWrite(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(1, "Taipei"))
 	mock.ExpectQuery("FROM regions").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "city_id"}).AddRow(7, "region-0", 1))
-	areas, err := cache.NewCache(db)
+	areas, err := postgres.NewCache(db)
 	if err != nil {
 		t.Fatalf("loading the area tables: %v", err)
 	}
-	sink := strategy.NewDBSink(quietLogger(), db, areas)
+	sink := postgres.NewDBSink(quietLogger(), db, areas)
 
 	var sent []driver.Value
 	one := written{&sent}
@@ -54,7 +53,7 @@ func TestWK_R2_LaterEventWinsWithinOneWrite(t *testing.T) {
 	mock.ExpectCommit()
 
 	const earlier, later = 111, 222
-	batch := []schema.CovidEvent{event(earlier, "region-0"), event(later, "region-0")}
+	batch := []event.CovidEvent{newEvent(earlier, "region-0"), newEvent(later, "region-0")}
 	if err := sink.Flush(context.Background(), &batch); err != nil {
 		t.Fatalf("writing two events for one key failed: %v", err)
 	}

@@ -1,4 +1,4 @@
-package schema
+package event
 
 import (
 	"context"
@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"go.uber.org/zap"
-	"safezone.service.worker-golang/app/pkg/logger"
+	"safezone.service.worker-golang/app/logger"
 )
 
 // CacheReader is the read-only interface CovidValidator needs for city/region lookups.
-// *cache.Cache satisfies this interface.
+// *postgres.Cache satisfies this interface.
 type CacheReader interface {
 	GetCityID(city string) int
 	GetRegionID(cityID int, region string) int

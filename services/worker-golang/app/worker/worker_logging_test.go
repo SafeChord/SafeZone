@@ -1,4 +1,4 @@
-package service_test
+package worker_test
 
 import (
 	"bytes"
@@ -12,18 +12,17 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"safezone.service.worker-golang/app/config"
-	"safezone.service.worker-golang/app/pkg/logger"
-	"safezone.service.worker-golang/app/schema"
-	"safezone.service.worker-golang/app/service"
-	"safezone.service.worker-golang/app/strategy"
+	"safezone.service.worker-golang/app/event"
+	"safezone.service.worker-golang/app/logger"
+	"safezone.service.worker-golang/app/worker"
 )
 
 type failPollSource struct{ err error }
 
-func (s failPollSource) Poll(context.Context, int) ([]schema.CovidEvent, error) { return nil, s.err }
-func (failPollSource) Commit(context.Context) error                             { return nil }
-func (failPollSource) AllowRebalance()                                          {}
-func (failPollSource) Close(context.Context) error                              { return nil }
+func (s failPollSource) Poll(context.Context, int) ([]event.CovidEvent, error) { return nil, s.err }
+func (failPollSource) Commit(context.Context) error                            { return nil }
+func (failPollSource) AllowRebalance()                                         {}
+func (failPollSource) Close(context.Context) error                             { return nil }
 
 func TestWorkerLogsWorkerIDAsString(t *testing.T) {
 	var output bytes.Buffer
@@ -35,15 +34,15 @@ func TestWorkerLogsWorkerIDAsString(t *testing.T) {
 		TraceIDKey:  "trace_id",
 	}
 	sourceErr := errors.New("test source failure")
-	w := &service.Worker{
+	w := &worker.Worker{
 		Source: failPollSource{err: sourceErr},
-		Sink:   &strategy.MockSink{},
+		Sink:   &MockSink{},
 		Config: &config.Config{BatchSize: 1},
 		Logger: log,
 		ID:     27,
 	}
 
-	if err := service.RunWorkers(context.Background(), []*service.Worker{w}, 1); !errors.Is(err, sourceErr) {
+	if err := worker.RunWorkers(context.Background(), []*worker.Worker{w}, 1); !errors.Is(err, sourceErr) {
 		t.Fatalf("RunWorkers error = %v, want %v", err, sourceErr)
 	}
 	lines := strings.Split(strings.TrimSpace(output.String()), "\n")

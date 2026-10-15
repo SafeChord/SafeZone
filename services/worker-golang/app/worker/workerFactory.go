@@ -1,4 +1,4 @@
-package service
+package worker
 
 import (
 	"context"
@@ -7,12 +7,11 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
-	"safezone.service.worker-golang/app/adapter"
 	"safezone.service.worker-golang/app/config"
-	cachepkg "safezone.service.worker-golang/app/pkg/cache"
-	"safezone.service.worker-golang/app/pkg/logger"
-	"safezone.service.worker-golang/app/schema"
-	"safezone.service.worker-golang/app/strategy"
+	"safezone.service.worker-golang/app/event"
+	"safezone.service.worker-golang/app/kafka"
+	"safezone.service.worker-golang/app/logger"
+	"safezone.service.worker-golang/app/postgres"
 )
 
 // NewWorker creates a production Worker wired to Kafka and PostgreSQL.
@@ -22,13 +21,13 @@ func NewWorker(id int, cfg *config.Config, log *logger.ContextLogger) (*Worker, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
-	cache, err := cachepkg.NewCache(db)
+	cache, err := postgres.NewCache(db)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to load administrative-area cache: %w", err)
 	}
 	workerCtx := context.WithValue(context.Background(), log.WorkerIDKey, strconv.Itoa(id))
-	source, err := adapter.NewKafkaSourceWithContext(workerCtx, log, cfg.KafkaBroker, cfg.KafkaGroupID, cfg.KafkaTopic)
+	source, err := kafka.NewSourceWithContext(workerCtx, log, cfg.KafkaBroker, cfg.KafkaGroupID, cfg.KafkaTopic)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to create kafka source: %w", err)
@@ -37,8 +36,8 @@ func NewWorker(id int, cfg *config.Config, log *logger.ContextLogger) (*Worker, 
 		DB:        db,
 		Cache:     cache,
 		Source:    source,
-		Validator: schema.NewCovidValidator(log, cache),
-		Sink:      strategy.NewDBSink(log, db, cache),
+		Validator: event.NewCovidValidator(log, cache),
+		Sink:      postgres.NewDBSink(log, db, cache),
 		Config:    cfg,
 		Logger:    log,
 		ID:        id,

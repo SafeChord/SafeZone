@@ -1,4 +1,4 @@
-package service_test
+package worker_test
 
 import (
 	"context"
@@ -13,10 +13,10 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.uber.org/zap"
 
-	"safezone.service.worker-golang/app/adapter"
 	"safezone.service.worker-golang/app/config"
-	"safezone.service.worker-golang/app/schema"
-	"safezone.service.worker-golang/app/service"
+	"safezone.service.worker-golang/app/event"
+	"safezone.service.worker-golang/app/kafka"
+	"safezone.service.worker-golang/app/worker"
 )
 
 const (
@@ -35,7 +35,7 @@ func newSteadyStore() *steadyStore {
 	return &steadyStore{cases: map[string]int{}, seen: map[int]bool{}}
 }
 
-func (s *steadyStore) Flush(ctx context.Context, buffer *[]schema.CovidEvent) error {
+func (s *steadyStore) Flush(ctx context.Context, buffer *[]event.CovidEvent) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -58,8 +58,8 @@ func (s *steadyStore) seenCount() int {
 	return len(s.seen)
 }
 
-func makeRebalanceEvent(seq int, region string) schema.CovidEvent {
-	var e schema.CovidEvent
+func makeRebalanceEvent(seq int, region string) event.CovidEvent {
+	var e event.CovidEvent
 	e.EventType = "covid.case.reported"
 	e.TraceID = fmt.Sprintf("trace-%d", seq)
 	e.Version = "1.0"
@@ -92,11 +92,11 @@ func TestRebalanceUnderSteadyTraffic(t *testing.T) {
 	log.Logger = zap.NewNop()
 
 	startWorker := func(id int) (context.CancelFunc, <-chan struct{}) {
-		src, err := adapter.NewKafkaSource(log, addr, rebalanceGroup, rebalanceTopic)
+		src, err := kafka.NewSource(log, addr, rebalanceGroup, rebalanceTopic)
 		if err != nil {
 			t.Fatalf("start worker %d: %v", id, err)
 		}
-		w := &service.Worker{
+		w := &worker.Worker{
 			Source: src,
 			Sink:   store,
 			Config: &config.Config{

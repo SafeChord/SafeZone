@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"safezone.service.worker-golang/app/schema"
+	"safezone.service.worker-golang/app/event"
 )
 
 // exampleAreas knows exactly the cities and regions of the example events.
@@ -40,7 +40,7 @@ func TestWK_R10_AcceptsEveryContractExample(t *testing.T) {
 		t.Fatalf("no example events under %s/examples/covid_event (err: %v)", dir, err)
 	}
 
-	events := make(map[string]schema.CovidEvent, len(paths))
+	events := make(map[string]event.CovidEvent, len(paths))
 	areas := exampleAreas{cities: map[string]bool{}, regions: map[string]bool{}}
 	for _, p := range paths {
 		raw, err := os.ReadFile(p)
@@ -48,7 +48,7 @@ func TestWK_R10_AcceptsEveryContractExample(t *testing.T) {
 			t.Fatalf("read %s: %v", p, err)
 		}
 		// The same decoding the Kafka source applies to a record's value.
-		var e schema.CovidEvent
+		var e event.CovidEvent
 		if err := json.Unmarshal(raw, &e); err != nil {
 			t.Errorf("%s: worker cannot parse it: %v", filepath.Base(p), err)
 			continue
@@ -58,7 +58,7 @@ func TestWK_R10_AcceptsEveryContractExample(t *testing.T) {
 		areas.regions[e.Payload.Region] = true
 	}
 
-	v := schema.NewCovidValidator(quietLogger(), areas)
+	v := event.NewCovidValidator(quietLogger(), areas)
 	for name, e := range events {
 		if !v.Validate(context.Background(), e) {
 			t.Errorf("%s: worker rejects a contract-valid event", name)
