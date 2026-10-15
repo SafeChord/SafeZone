@@ -37,3 +37,28 @@ def test_data_product(case, logger):
         except EmptyDataError:
             logger.debug("Data productor failed because of empty data.")
             assert True
+
+
+def test_read_csv_cached_once(monkeypatch):
+    import pandas as pd
+    from services.data_productor import read_csv, get_data_by_date
+
+    read_csv.cache_clear()
+    call_count = 0
+    orig_read_csv = pd.read_csv
+
+    def counting_read_csv(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return orig_read_csv(*args, **kwargs)
+
+    monkeypatch.setattr(pd, "read_csv", counting_read_csv)
+
+    get_data_by_date("2023-03-20")
+    assert call_count == 1
+
+    get_data_by_date("2023-03-20")
+    assert call_count == 1
+
+    get_data_by_date("2023-07-01")
+    assert call_count == 1

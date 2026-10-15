@@ -18,7 +18,8 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 async def send_one(sem, client, url, case):
     async with sem:
         trace_header = {"X-Trace-ID": str(trace_id_var.get())}
-        await client.post(url, headers=trace_header, json=case, timeout=5.0)
+        resp = await client.post(url, headers=trace_header, json=case, timeout=5.0)
+        resp.raise_for_status()
         logger.info(f"Case = {case} sent to ingestor.", extra={"event": "case_sent"})
 
 
@@ -29,12 +30,15 @@ async def send_data(data):
     try:
         payloads = [CovidDataModel(**case).model_dump() for case in data]
     except ValidationError as e:
-        raise ServiceValidationError(errors=e)
+        raise ServiceValidationError(exc=e)
 
     async with httpx.AsyncClient() as client:
         tasks = [
             send_one(sem, client, INGESTOR_URL + "/covid_event", payload)
             for payload in payloads
         ]
-        # gather 所有併發請求
-        await asyncio.gather(*tasks)
+        # Gather all concurrent requests
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for r in results:
+            if isinstance(r, Exception):
+                raise r
