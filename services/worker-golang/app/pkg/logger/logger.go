@@ -36,8 +36,8 @@ func NewContextLogger(serviceName, serviceVersion, env string) *ContextLogger {
 		os.Exit(1)
 	}
 
-	// Skip the decorator wrapper so the caller sees the correct log location.
-	baseLogger = baseLogger.WithOptions(zap.AddCaller(), zap.AddCallerSkip(1))
+	// Skip the ContextLogger method and shared helper so the caller sees the correct log location.
+	baseLogger = baseLogger.WithOptions(zap.AddCaller(), zap.AddCallerSkip(2))
 
 	baseLogger = baseLogger.With(
 		zap.String("service", serviceName),

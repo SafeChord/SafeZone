@@ -24,6 +24,11 @@ type KafkaSource struct {
 }
 
 func NewKafkaSource(logger *logger.ContextLogger, brokers string, groupID string, topic string) (*KafkaSource, error) {
+	return NewKafkaSourceWithContext(context.Background(), logger, brokers, groupID, topic)
+}
+
+// NewKafkaSourceWithContext logs startup messages with the supplied context.
+func NewKafkaSourceWithContext(ctx context.Context, logger *logger.ContextLogger, brokers string, groupID string, topic string) (*KafkaSource, error) {
 	src := &KafkaSource{
 		Logger:      logger,
 		uncommitted: make(map[int32]*kgo.Record),
@@ -73,20 +78,20 @@ func NewKafkaSource(logger *logger.ContextLogger, brokers string, groupID string
 
 	client, err := kgo.NewClient(opts...)
 	if err != nil {
-		logger.Error(context.Background(), "Failed to create Kafka client", zap.Error(err))
+		logger.Error(ctx, "Failed to create Kafka client", zap.Error(err))
 		return nil, fmt.Errorf("failed to create kafka client: %w", err)
 	}
 	src.Client = client
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	if err := client.Ping(ctx); err != nil {
-		logger.Error(context.Background(), "Failed to connect to Kafka", zap.Error(err))
+	if err := client.Ping(pingCtx); err != nil {
+		logger.Error(ctx, "Failed to connect to Kafka", zap.Error(err))
 		client.Close()
 		return nil, fmt.Errorf("failed to connect to kafka: %w", err)
 	}
 
-	logger.Info(context.Background(), "Successfully connected to Kafka with franz-go")
+	logger.Info(ctx, "Successfully connected to Kafka with franz-go")
 	return src, nil
 }
 

@@ -1,7 +1,9 @@
 package service
 
 import (
+	"context"
 	"fmt"
+	"strconv"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
@@ -25,7 +27,8 @@ func NewWorker(id int, cfg *config.Config, log *logger.ContextLogger) (*Worker, 
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to load administrative-area cache: %w", err)
 	}
-	source, err := adapter.NewKafkaSource(log, cfg.KafkaBroker, cfg.KafkaGroupID, cfg.KafkaTopic)
+	workerCtx := context.WithValue(context.Background(), log.WorkerIDKey, strconv.Itoa(id))
+	source, err := adapter.NewKafkaSourceWithContext(workerCtx, log, cfg.KafkaBroker, cfg.KafkaGroupID, cfg.KafkaTopic)
 	if err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to create kafka source: %w", err)
