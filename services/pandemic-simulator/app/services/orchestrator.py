@@ -1,4 +1,3 @@
-import asyncio
 from services.data_productor import get_data_by_date, get_data_by_interval
 from services.data_sender import send_data
 

@@ -39,14 +39,14 @@
         "test_describes": "Request by daily data with no available data scenario",
         "endpoint": "/simulate/daily",
         "date": "2025-03-20",
-        "expected_status_code": 500
+        "expected_status_code": 404
     },
     {
         "test_describes": "Request by interval data with no available data scenario",
         "endpoint": "/simulate/interval",
         "start_date": "2025-03-20",
         "end_date": "2026-04-05",
-        "expected_status_code": 500
+        "expected_status_code": 404
     },
     {
         "test_describes": "Request by interval data with incorrect date range scenario",

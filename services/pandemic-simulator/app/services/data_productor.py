@@ -1,8 +1,9 @@
-# app/services/data_productor.py
+import functools
 import pandas as pd # type: ignore
 
 from exceptions.custom import EmptyDataError
 
+@functools.lru_cache(maxsize=1)
 def read_csv():
     data = pd.read_csv("/data/covid_data.csv")
 
