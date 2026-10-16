@@ -12,6 +12,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+const DefaultDependencyTimeout = 10 * time.Second
+
 type Config struct {
 	Environment string
 	LogLevel    zapcore.Level
@@ -50,10 +52,10 @@ func Load() (*Config, error) {
 	batchSize := getNumEnv("BATCH_SIZE", 5)
 	flushInterval := getDurationEnv("FLUSH_INTERVAL", 1*time.Second)
 	livenessWindow := getDurationEnv("LIVENESS_WINDOW", 30*time.Second)
-	dependencyTimeout := getDurationEnv("DEPENDENCY_TIMEOUT", 10*time.Second)
+	dependencyTimeout := getDurationEnv("DEPENDENCY_TIMEOUT", DefaultDependencyTimeout)
 	if dependencyTimeout <= 0 {
-		fmt.Fprintln(os.Stderr, "Invalid duration environment variable DEPENDENCY_TIMEOUT: must be positive, using default value 10s")
-		dependencyTimeout = 10 * time.Second
+		fmt.Fprintf(os.Stderr, "Invalid duration environment variable DEPENDENCY_TIMEOUT: must be positive, using default value %s\n", DefaultDependencyTimeout)
+		dependencyTimeout = DefaultDependencyTimeout
 	}
 	if dependencyTimeout >= livenessWindow {
 		return nil, fmt.Errorf("DEPENDENCY_TIMEOUT (%s) must be less than LIVENESS_WINDOW (%s)", dependencyTimeout, livenessWindow)

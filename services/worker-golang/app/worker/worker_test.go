@@ -192,10 +192,13 @@ func TestWorker_SourceError(t *testing.T) {
 	src.PushError(errors.New("kafka connection lost"))
 	src.Push(makeEvent(1))
 
+	if !waitFor(t, time.Second, func() bool { return sink.FlushedCount() == 1 }) {
+		t.Fatal("worker did not continue polling and persist the event after a poll error")
+	}
 	select {
 	case err := <-done:
-		t.Fatalf("worker exited after poll error: %v", err)
-	case <-time.After(250 * time.Millisecond):
+		t.Fatalf("worker exited after poll recovery: %v", err)
+	default:
 	}
 	cancel()
 	if err := <-done; err != nil {

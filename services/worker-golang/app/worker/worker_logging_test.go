@@ -44,7 +44,7 @@ func TestWorkerLogsWorkerIDAsString(t *testing.T) {
 		ID:     27,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 800*time.Millisecond)
 	defer cancel()
 	if err := w.Run(ctx); err != nil {
 		t.Fatalf("Run error = %v, want nil after context cancellation", err)

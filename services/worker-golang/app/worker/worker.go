@@ -34,6 +34,7 @@ func (w *Worker) Run(ctx context.Context) error {
 	var (
 		inFlight       []event.CovidEvent
 		inFlightPolled bool
+		failureCount   int
 	)
 
 	// On exit / shutdown: flush and commit anything polled but not yet persisted on a fresh context
@@ -100,7 +101,8 @@ func (w *Worker) Run(ctx context.Context) error {
 		}
 		if err != nil && !pollTimedOut {
 			w.Logger.Error(workerCtx, "Failed to get events from source", zap.Error(err))
-			if !waitForRetry(ctx) {
+			failureCount = nextFailureCount(failureCount)
+			if !waitForRetry(ctx, retryDelay(failureCount, w.Config.LivenessWindow)) {
 				return nil
 			}
 			continue
@@ -138,7 +140,8 @@ func (w *Worker) Run(ctx context.Context) error {
 				w.Source.Retry()
 				inFlight = nil
 				inFlightPolled = false
-				if !waitForRetry(ctx) {
+				failureCount = nextFailureCount(failureCount)
+				if !waitForRetry(ctx, retryDelay(failureCount, w.Config.LivenessWindow)) {
 					return nil
 				}
 				continue
@@ -157,31 +160,63 @@ func (w *Worker) Run(ctx context.Context) error {
 					return nil
 				}
 				w.Logger.Error(workerCtx, "Failed to commit offsets", zap.Error(err))
-				if !waitForRetry(ctx) {
+				failureCount = nextFailureCount(failureCount)
+				if !waitForRetry(ctx, retryDelay(failureCount, w.Config.LivenessWindow)) {
 					return nil
 				}
 				continue
 			}
 		}
 
+		failureCount = 0
 		inFlightPolled = false
 
 		// 6. Only now poll again.
 	}
 }
 
-const retryDelay = 100 * time.Millisecond
-const defaultDependencyTimeout = 10 * time.Second
+const (
+	baseRetryDelay = 250 * time.Millisecond
+	maxRetryDelay  = time.Second
+)
 
 func (w *Worker) dependencyTimeout() time.Duration {
 	if w.Config != nil && w.Config.DependencyTimeout > 0 {
 		return w.Config.DependencyTimeout
 	}
-	return defaultDependencyTimeout
+	return config.DefaultDependencyTimeout
 }
 
-func waitForRetry(ctx context.Context) bool {
-	timer := time.NewTimer(retryDelay)
+func retryDelay(failureCount int, livenessWindow time.Duration) time.Duration {
+	maxDelay := maxRetryDelay
+	if livenessWindow > 0 {
+		windowLimit := livenessWindow / 4
+		if windowLimit < baseRetryDelay {
+			windowLimit = baseRetryDelay
+		}
+		if windowLimit < maxDelay {
+			maxDelay = windowLimit
+		}
+	}
+	delay := baseRetryDelay
+	for attempt := 1; attempt < failureCount && delay < maxDelay; attempt++ {
+		delay *= 2
+	}
+	if delay > maxDelay {
+		return maxDelay
+	}
+	return delay
+}
+
+func nextFailureCount(failureCount int) int {
+	if failureCount < 5 {
+		return failureCount + 1
+	}
+	return failureCount
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
