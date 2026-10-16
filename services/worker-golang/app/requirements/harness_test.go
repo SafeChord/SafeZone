@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -138,6 +139,7 @@ type store struct {
 	mu       sync.Mutex
 	delay    time.Duration // time one write takes
 	fail     error         // when set, every write fails
+	hang     chan struct{} // when set, every write waits until it is closed: the database took the call and does not answer
 	cases    map[string]int
 	seen     map[int]bool // every case count ever persisted
 	tried    map[int]bool // every case count the worker ever tried to persist
@@ -158,6 +160,13 @@ func (s *store) Flush(ctx context.Context, buffer *[]event.CovidEvent) error {
 	s.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return err // a real database refuses a write on a context that is already done
+	}
+	if s.hang != nil {
+		select {
+		case <-s.hang:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	if s.delay > 0 {
 		time.Sleep(s.delay)
@@ -263,10 +272,12 @@ type workerOpts struct {
 	batch         int
 	flushInterval time.Duration // default 50ms
 	validate      bool          // check events against areas, as production does
+	db            *sqlx.DB      // the worker's database connection, as production holds one
 }
 
 // running is one worker: its own group member, as each pod is.
 type running struct {
+	w      *worker.Worker
 	cancel context.CancelFunc
 	done   chan struct{}
 }
@@ -288,12 +299,13 @@ func startWorker(t *testing.T, b *broker, o workerOpts) *running {
 		Config: &config.Config{BatchSize: o.batch, FlushInterval: o.flushInterval},
 		Logger: log,
 		ID:     o.id,
+		DB:     o.db,
 	}
 	if o.validate {
 		w.Validator = event.NewCovidValidator(log, areas{})
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	r := &running{cancel: cancel, done: make(chan struct{})}
+	r := &running{w: w, cancel: cancel, done: make(chan struct{})}
 	go func() {
 		defer close(r.done)
 		_ = w.Run(ctx)
