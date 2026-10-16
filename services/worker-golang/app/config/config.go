@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"go.uber.org/zap/zapcore"
 )
 
 type Config struct {
 	Environment string
-	LogLevel    string
+	LogLevel    zapcore.Level
 	// service specific configuration
 	ServiceName    string
 	ServiceVersion string
@@ -41,7 +42,7 @@ func Load() (*Config, error) {
 	}
 	// basic configuration
 	environment := getEnv("ENVIRONMENT", "TEST")
-	logLevel := getEnv("LOG_LEVEL", "info")
+	logLevel := getLogLevelEnv("LOG_LEVEL", zapcore.InfoLevel)
 	serviceName := getEnv("SERVICE_NAME", "worker-golang")
 	serviceVersion := getEnv("SERVICE_VERSION", "0.1.0")
 	// batch processing configuration
@@ -106,4 +107,15 @@ func getDurationEnv(key string, defaultVal time.Duration) time.Duration {
 		return defaultVal
 	}
 	return val
+}
+
+func getLogLevelEnv(key string, defaultVal zapcore.Level) zapcore.Level {
+	valStr := getEnv(key, defaultVal.String())
+	// ParseLevel ignores case, and also accepts dpanic, panic and fatal; the worker accepts debug through error only.
+	val, err := zapcore.ParseLevel(valStr)
+	if err == nil && val <= zapcore.ErrorLevel {
+		return val
+	}
+	fmt.Fprintf(os.Stderr, "Unrecognized log level environment variable %s: %q, using default value %s\n", key, valStr, defaultVal)
+	return defaultVal
 }

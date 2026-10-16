@@ -19,6 +19,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"safezone.service.worker-golang/app/config"
 	"safezone.service.worker-golang/app/event"
@@ -33,7 +34,7 @@ const (
 )
 
 func quietLogger() *logger.ContextLogger {
-	l := logger.NewContextLogger("test", "0.0.0", "test")
+	l := logger.NewContextLogger("test", "0.0.0", "test", zapcore.DebugLevel)
 	l.Logger = zap.NewNop()
 	return l
 }

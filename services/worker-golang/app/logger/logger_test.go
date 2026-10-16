@@ -65,7 +65,7 @@ func TestNewContextLoggerCallerPointsToCallingFileAndLine(t *testing.T) {
 
 	originalStderr := os.Stderr
 	os.Stderr = writer
-	cl := NewContextLogger("worker-golang", "test", "prod")
+	cl := NewContextLogger("worker-golang", "test", "prod", zapcore.InfoLevel)
 	os.Stderr = originalStderr
 
 	infoFile, infoLine := logInfoFromCallSite(cl)
@@ -105,6 +105,63 @@ func TestNewContextLoggerCallerPointsToCallingFileAndLine(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestNewContextLoggerLogsAtLevelAndAbove(t *testing.T) {
+	messages := []struct {
+		level zapcore.Level
+		msg   string
+	}{
+		{zapcore.DebugLevel, "level check debug"},
+		{zapcore.InfoLevel, "level check info"},
+		{zapcore.WarnLevel, "level check warn"},
+		{zapcore.ErrorLevel, "level check error"},
+	}
+	// preview runs the development encoder, which logged at debug whatever level was configured.
+	for _, env := range []string{"prod", "preview"} {
+		for _, level := range []zapcore.Level{zapcore.DebugLevel, zapcore.InfoLevel, zapcore.WarnLevel, zapcore.ErrorLevel} {
+			t.Run(env+"/"+level.String(), func(t *testing.T) {
+				output := captureStderr(t, func() {
+					cl := NewContextLogger("worker-golang", "test", env, level)
+					ctx := context.Background()
+					cl.Debug(ctx, messages[0].msg)
+					cl.Info(ctx, messages[1].msg)
+					cl.Warn(ctx, messages[2].msg)
+					cl.Error(ctx, messages[3].msg)
+					_ = cl.Logger.Sync()
+				})
+				for _, m := range messages {
+					logged := strings.Contains(output, m.msg)
+					if want := m.level >= level; logged != want {
+						t.Errorf("%s message logged = %v, want %v; output:\n%s", m.level, logged, want, output)
+					}
+				}
+			})
+		}
+	}
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("creating output pipe: %v", err)
+	}
+	defer reader.Close()
+
+	originalStderr := os.Stderr
+	os.Stderr = writer
+	defer func() { os.Stderr = originalStderr }()
+	fn()
+	if err := writer.Close(); err != nil {
+		t.Fatalf("closing output pipe: %v", err)
+	}
+
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("reading captured output: %v", err)
+	}
+	return string(output)
 }
 
 func logInfoFromCallSite(cl *ContextLogger) (string, int) {

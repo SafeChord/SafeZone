@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"safezone.service.worker-golang/app/config"
 	"safezone.service.worker-golang/app/event"
@@ -98,7 +99,7 @@ func TestHealthServerRunsAlongsideWorkersAndStopsAfterDrain(t *testing.T) {
 		closed:    make(chan struct{}),
 	}
 	sink := &healthTestSink{started: make(chan struct{}), release: make(chan struct{})}
-	log := logger.NewContextLogger("test", "test", "test")
+	log := logger.NewContextLogger("test", "test", "test", zapcore.DebugLevel)
 	log.Logger = zap.NewNop()
 	w := &worker.Worker{
 		Source: source,

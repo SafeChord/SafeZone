@@ -1,10 +1,14 @@
 package config
 
 import (
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"go.uber.org/zap/zapcore"
 )
 
 func TestLoadAllowsMissingDotEnv(t *testing.T) {
@@ -57,6 +61,62 @@ func TestLoadLivenessAndServerConfiguration(t *testing.T) {
 	}
 }
 
+func TestLoadLogLevelAcceptsLevelNamesInEitherCase(t *testing.T) {
+	cases := map[string]zapcore.Level{
+		"debug": zapcore.DebugLevel,
+		"DEBUG": zapcore.DebugLevel,
+		"info":  zapcore.InfoLevel,
+		"INFO":  zapcore.InfoLevel,
+		"Warn":  zapcore.WarnLevel,
+		"WARN":  zapcore.WarnLevel,
+		"error": zapcore.ErrorLevel,
+		"Error": zapcore.ErrorLevel,
+	}
+	for value, want := range cases {
+		t.Run(value, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("LOG_LEVEL", value)
+
+			var cfg *Config
+			stderr := captureStderr(t, func() {
+				var err error
+				if cfg, err = Load(); err != nil {
+					t.Fatalf("loading config: %v", err)
+				}
+			})
+			if cfg.LogLevel != want {
+				t.Errorf("LOG_LEVEL %q = %s, want %s", value, cfg.LogLevel, want)
+			}
+			if strings.Contains(stderr, "LOG_LEVEL") {
+				t.Errorf("LOG_LEVEL %q produced a warning: %s", value, stderr)
+			}
+		})
+	}
+}
+
+func TestLoadLogLevelFallsBackToInfoWithWarning(t *testing.T) {
+	for _, value := range []string{"verbose", "warning", "fatal"} {
+		t.Run(value, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			t.Setenv("LOG_LEVEL", value)
+
+			var cfg *Config
+			stderr := captureStderr(t, func() {
+				var err error
+				if cfg, err = Load(); err != nil {
+					t.Fatalf("loading config: %v", err)
+				}
+			})
+			if cfg.LogLevel != zapcore.InfoLevel {
+				t.Errorf("LOG_LEVEL %q = %s, want info", value, cfg.LogLevel)
+			}
+			if !strings.Contains(stderr, "LOG_LEVEL") || !strings.Contains(stderr, value) {
+				t.Errorf("LOG_LEVEL %q produced no warning naming it; stderr: %s", value, stderr)
+			}
+		})
+	}
+}
+
 func TestLoadReturnsErrorsOtherThanMissingDotEnv(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -82,4 +142,27 @@ func unsetEnvForTest(t *testing.T, key string) {
 			_ = os.Unsetenv(key)
 		}
 	})
+}
+
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("creating stderr pipe: %v", err)
+	}
+	defer reader.Close()
+
+	originalStderr := os.Stderr
+	os.Stderr = writer
+	defer func() { os.Stderr = originalStderr }()
+	fn()
+	if err := writer.Close(); err != nil {
+		t.Fatalf("closing stderr pipe: %v", err)
+	}
+
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("reading captured stderr: %v", err)
+	}
+	return string(output)
 }

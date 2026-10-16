@@ -36,7 +36,7 @@ func main() {
 	ctx, stop := setupSignalContext()
 	defer stop()
 
-	log := logger.NewContextLogger(cfg.ServiceName, cfg.ServiceVersion, cfg.Environment)
+	log := logger.NewContextLogger(cfg.ServiceName, cfg.ServiceVersion, cfg.Environment, cfg.LogLevel)
 	log.Info(ctx, "Worker-golang service started")
 
 	workers := make([]*worker.Worker, 0, cfg.WorkerCount)

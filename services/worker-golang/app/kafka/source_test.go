@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"safezone.service.worker-golang/app/kafka"
 	"safezone.service.worker-golang/app/logger"
 )
 
 func testLogger() *logger.ContextLogger {
-	l := logger.NewContextLogger("test", "0.0.0", "test")
+	l := logger.NewContextLogger("test", "0.0.0", "test", zapcore.DebugLevel)
 	l.Logger = zap.NewNop()
 	return l
 }
