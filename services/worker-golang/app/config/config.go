@@ -18,8 +18,11 @@ type Config struct {
 	ServiceName    string
 	ServiceVersion string
 	// batch processing configuration
-	BatchSize     int
-	FlushInterval time.Duration
+	BatchSize      int
+	FlushInterval  time.Duration
+	LivenessWindow time.Duration
+	ServerIP       string
+	ServerPort     int
 	// parallel processing configuration
 	WorkerCount int // number of workers
 	ParallelN   int // number of parallel workers at a time
@@ -44,6 +47,9 @@ func Load() (*Config, error) {
 	// batch processing configuration
 	batchSize := getNumEnv("BATCH_SIZE", 5)
 	flushInterval := getDurationEnv("FLUSH_INTERVAL", 1*time.Second)
+	livenessWindow := getDurationEnv("LIVENESS_WINDOW", 30*time.Second)
+	serverIP := getEnv("SERVER_IP", "0.0.0.0")
+	serverPort := getNumEnv("SERVER_PORT", 8080)
 	// parallel processing configuration
 	workerCount := getNumEnv("WORKER_COUNT", 1)
 	parallelN := getNumEnv("PARALLEL_N", 1)
@@ -61,6 +67,9 @@ func Load() (*Config, error) {
 		ServiceVersion: serviceVersion,
 		BatchSize:      batchSize,
 		FlushInterval:  flushInterval,
+		LivenessWindow: livenessWindow,
+		ServerIP:       serverIP,
+		ServerPort:     serverPort,
 		WorkerCount:    workerCount,
 		ParallelN:      parallelN,
 		KafkaBroker:    kafkaBroker,

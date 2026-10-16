@@ -58,6 +58,13 @@ main() {
         exit 1
     fi
 
+    # Verify the worker's HTTP health endpoint from the same network as the services.
+    log_info "--- Checking worker health endpoint ---"
+    docker run --rm \
+        --network "$NETWORK_NAME" \
+        -v "$SCRIPT_DIR/../data/smoke-test/worker-health.py:/app/worker-health.py:ro" \
+        "$OPS_IMAGE" python /app/worker-health.py
+
     # Phase 1: Run ops container on compose network
     log_info "--- Phase 1: Running ops smoke test ---"
     # Explicit command (the ops image has no ENTRYPOINT; mirrors the

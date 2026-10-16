@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -15,14 +16,15 @@ import (
 )
 
 type Worker struct {
-	DB        *sqlx.DB              // database connection, if needed
-	Cache     *postgres.Cache       // cache for city and region mappings
-	Validator *event.CovidValidator // validator for events
-	Source    EventSource
-	Sink      EventSink
-	Config    *config.Config
-	Logger    *logger.ContextLogger // logger for logging events
-	ID        int                   // worker ID for logging and identification
+	DB           *sqlx.DB              // database connection, if needed
+	Cache        *postgres.Cache       // cache for city and region mappings
+	Validator    *event.CovidValidator // validator for events
+	Source       EventSource
+	Sink         EventSink
+	Config       *config.Config
+	Logger       *logger.ContextLogger // logger for logging events
+	ID           int                   // worker ID for logging and identification
+	lastLoopTurn atomic.Int64
 }
 
 func (w *Worker) Run(ctx context.Context) error {
@@ -73,6 +75,7 @@ func (w *Worker) Run(ctx context.Context) error {
 				zap.String("event", "context canceled"))
 			return nil
 		}
+		w.markLoopTurn()
 
 		// 1. Poll up to BatchSize records, waiting at most FlushInterval.
 		readCtx, cancel := context.WithTimeout(ctx, w.Config.FlushInterval)
