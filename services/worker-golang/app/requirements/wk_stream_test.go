@@ -37,7 +37,7 @@ func TestWK_R3_EventsNotPersistedAreDeliveredAgain(t *testing.T) {
 }
 
 // WK-R3: Progress is recorded only after persistence.
-// Scenario: stop before persistence, while writes for another partition succeed.
+// Scenario: another partition's writes succeed.
 //
 // The database rejects every write holding one event (ADR-035: a batch rejected for its
 // content), and accepts the events of another partition that keep arriving meanwhile. Those
