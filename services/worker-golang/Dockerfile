@@ -10,5 +10,4 @@ RUN go build -o worker ./app/main.go
 FROM debian:bookworm-slim
 WORKDIR /app
 COPY --from=build /module/worker .
-COPY services/worker-golang/.env.example /app/.env
 CMD ["./worker"]
