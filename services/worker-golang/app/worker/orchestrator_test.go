@@ -23,10 +23,9 @@ func newOrchestratorTestWorker(id int, src worker.EventSource, sink worker.Event
 	}
 }
 
-// TestRunWorkers_WorkerErrorStopsOthersAndReturnsError verifies that when one worker
-// exits with an error, the remaining workers are stopped via context cancellation and
-// the error is returned to the caller.
-func TestRunWorkers_WorkerErrorStopsOthersAndReturnsError(t *testing.T) {
+// TestRunWorkers_PollErrorDoesNotStopOthers verifies that an unhealthy dependency
+// does not cancel peer workers or end the process.
+func TestRunWorkers_PollErrorDoesNotStopOthers(t *testing.T) {
 	src0 := NewMockSource()
 	sink0 := &MockSink{}
 	w0 := newOrchestratorTestWorker(0, src0, sink0)
@@ -35,25 +34,28 @@ func TestRunWorkers_WorkerErrorStopsOthersAndReturnsError(t *testing.T) {
 	sink1 := &MockSink{}
 	w1 := newOrchestratorTestWorker(1, src1, sink1)
 
-	expectedErr := errors.New("fatal database connection lost")
-	// Push error to worker 0 so it fails immediately upon running
-	src0.PushError(expectedErr)
+	src0.PushError(errors.New("temporary broker connection lost"))
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		done <- worker.RunWorkers(context.Background(), []*worker.Worker{w0, w1}, 2)
+		done <- worker.RunWorkers(ctx, []*worker.Worker{w0, w1}, 2)
 	}()
+	time.Sleep(150 * time.Millisecond)
+	src1.Push(makeEvent(9))
+	if !waitFor(t, time.Second, func() bool { return sink1.FlushedCount() > 0 }) {
+		t.Fatal("peer worker stopped after another worker's poll error")
+	}
+	cancel()
 
 	select {
 	case err := <-done:
-		if err == nil {
-			t.Fatal("expected non-nil error from RunWorkers, got nil")
-		}
-		if !errors.Is(err, expectedErr) && err.Error() != expectedErr.Error() {
-			t.Fatalf("expected error %v, got %v", expectedErr, err)
+		if err != nil {
+			t.Fatalf("RunWorkers returned an error after parent cancellation: %v", err)
 		}
 	case <-time.After(3 * time.Second):
-		t.Fatal("RunWorkers timed out; peer workers were not canceled")
+		t.Fatal("RunWorkers did not stop after parent cancellation")
 	}
 }
 

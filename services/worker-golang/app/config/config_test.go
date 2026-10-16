@@ -17,7 +17,7 @@ func TestLoadAllowsMissingDotEnv(t *testing.T) {
 
 	for _, key := range []string{
 		"ENVIRONMENT", "LOG_LEVEL", "SERVICE_NAME", "SERVICE_VERSION", "BATCH_SIZE", "FLUSH_INTERVAL",
-		"LIVENESS_WINDOW", "WORKER_COUNT", "PARALLEL_N", "KAFKA_GROUP_ID", "KAFKA_TOPIC", "DB_URL",
+		"LIVENESS_WINDOW", "DEPENDENCY_TIMEOUT", "WORKER_COUNT", "PARALLEL_N", "KAFKA_GROUP_ID", "KAFKA_TOPIC", "DB_URL",
 	} {
 		t.Setenv(key, "")
 	}
@@ -35,11 +35,41 @@ func TestLoadAllowsMissingDotEnv(t *testing.T) {
 	if cfg.LivenessWindow != 30*time.Second {
 		t.Fatalf("default LIVENESS_WINDOW = %s, want 30s", cfg.LivenessWindow)
 	}
+	if cfg.DependencyTimeout != 10*time.Second {
+		t.Fatalf("default DEPENDENCY_TIMEOUT = %s, want 10s", cfg.DependencyTimeout)
+	}
+	if cfg.DependencyTimeout >= cfg.LivenessWindow {
+		t.Fatalf("default DEPENDENCY_TIMEOUT = %s, must be below LIVENESS_WINDOW %s", cfg.DependencyTimeout, cfg.LivenessWindow)
+	}
 	if cfg.LivenessWindow <= cfg.FlushInterval {
 		t.Fatalf("default LIVENESS_WINDOW = %s, must exceed FLUSH_INTERVAL %s", cfg.LivenessWindow, cfg.FlushInterval)
 	}
 	if cfg.ServerIP != "0.0.0.0" || cfg.ServerPort != 8080 {
 		t.Fatalf("default server address = %s:%d, want 0.0.0.0:8080", cfg.ServerIP, cfg.ServerPort)
+	}
+}
+
+func TestLoadDependencyTimeoutConfiguration(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("DEPENDENCY_TIMEOUT", "750ms")
+	t.Setenv("LIVENESS_WINDOW", "30s")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+	if cfg.DependencyTimeout != 750*time.Millisecond {
+		t.Fatalf("DEPENDENCY_TIMEOUT = %s, want 750ms", cfg.DependencyTimeout)
+	}
+}
+
+func TestLoadRejectsDependencyTimeoutAtOrAboveLivenessWindow(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("DEPENDENCY_TIMEOUT", "500ms")
+	t.Setenv("LIVENESS_WINDOW", "500ms")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected config to reject a dependency timeout that does not fit within the liveness window")
 	}
 }
 
