@@ -16,11 +16,13 @@ import (
 )
 
 type Source struct {
-	Logger      *logger.ContextLogger
-	Client      *kgo.Client
-	mu          sync.Mutex
-	uncommitted map[int32]*kgo.Record
-	assigned    map[int32]bool
+	Logger       *logger.ContextLogger
+	Client       *kgo.Client
+	mu           sync.Mutex
+	uncommitted  map[int32]*kgo.Record
+	retryFrom    map[int32]*kgo.Record
+	retryPending map[int32]*kgo.Record
+	assigned     map[int32]bool
 }
 
 func NewSource(logger *logger.ContextLogger, brokers string, groupID string, topic string) (*Source, error) {
@@ -30,9 +32,11 @@ func NewSource(logger *logger.ContextLogger, brokers string, groupID string, top
 // NewSourceWithContext logs startup messages with the supplied context.
 func NewSourceWithContext(ctx context.Context, logger *logger.ContextLogger, brokers string, groupID string, topic string) (*Source, error) {
 	src := &Source{
-		Logger:      logger,
-		uncommitted: make(map[int32]*kgo.Record),
-		assigned:    make(map[int32]bool),
+		Logger:       logger,
+		uncommitted:  make(map[int32]*kgo.Record),
+		retryFrom:    make(map[int32]*kgo.Record),
+		retryPending: make(map[int32]*kgo.Record),
+		assigned:     make(map[int32]bool),
 	}
 
 	opts := []kgo.Opt{
@@ -61,6 +65,8 @@ func NewSourceWithContext(ctx context.Context, logger *logger.ContextLogger, bro
 				for _, p := range partitions {
 					delete(src.assigned, p)
 					delete(src.uncommitted, p)
+					delete(src.retryFrom, p)
+					delete(src.retryPending, p)
 				}
 			}
 		}),
@@ -71,6 +77,8 @@ func NewSourceWithContext(ctx context.Context, logger *logger.ContextLogger, bro
 				for _, p := range partitions {
 					delete(src.assigned, p)
 					delete(src.uncommitted, p)
+					delete(src.retryFrom, p)
+					delete(src.retryPending, p)
 				}
 			}
 		}),
@@ -109,6 +117,13 @@ func (k *Source) Poll(ctx context.Context, max int) ([]event.CovidEvent, error) 
 		records := fetches.Records()
 		if len(records) > 0 {
 			events := make([]event.CovidEvent, 0, len(records))
+			firstRecords := make(map[int32]*kgo.Record)
+			k.mu.Lock()
+			pendingBeforePoll := make(map[int32]*kgo.Record, len(k.uncommitted))
+			for partition, record := range k.uncommitted {
+				pendingBeforePoll[partition] = record
+			}
+			k.mu.Unlock()
 			for _, record := range records {
 				var event event.CovidEvent
 				if err := json.Unmarshal(record.Value, &event); err != nil {
@@ -121,6 +136,9 @@ func (k *Source) Poll(ctx context.Context, max int) ([]event.CovidEvent, error) 
 					k.mu.Lock()
 					if k.assigned[record.Partition] {
 						k.uncommitted[record.Partition] = record
+						if _, exists := firstRecords[record.Partition]; !exists {
+							firstRecords[record.Partition] = record
+						}
 					}
 					k.mu.Unlock()
 					continue
@@ -137,10 +155,17 @@ func (k *Source) Poll(ctx context.Context, max int) ([]event.CovidEvent, error) 
 					continue
 				}
 				k.uncommitted[record.Partition] = record
+				if _, exists := firstRecords[record.Partition]; !exists {
+					firstRecords[record.Partition] = record
+				}
 				k.mu.Unlock()
 
 				events = append(events, event)
 			}
+			k.mu.Lock()
+			k.retryFrom = firstRecords
+			k.retryPending = pendingBeforePoll
+			k.mu.Unlock()
 			return events, nil
 		}
 
@@ -166,6 +191,39 @@ func (k *Source) Poll(ctx context.Context, max int) ([]event.CovidEvent, error) 
 	}
 }
 
+// Retry rewinds the fetch position to the first record returned by the most recent poll.
+// It is called after that poll's write fails, while BlockRebalanceOnPoll still holds
+// ownership of the returned records.
+func (k *Source) Retry() {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.Client == nil {
+		return
+	}
+	offsets := make(map[string]map[int32]kgo.EpochOffset)
+	for partition, record := range k.retryFrom {
+		if !k.assigned[partition] {
+			continue
+		}
+		if offsets[record.Topic] == nil {
+			offsets[record.Topic] = make(map[int32]kgo.EpochOffset)
+		}
+		offsets[record.Topic][partition] = kgo.EpochOffset{Epoch: record.LeaderEpoch, Offset: record.Offset}
+	}
+	if len(offsets) > 0 {
+		k.Client.SetOffsets(offsets)
+	}
+	k.uncommitted = make(map[int32]*kgo.Record, len(k.retryPending))
+	for partition, record := range k.retryPending {
+		if k.assigned[partition] {
+			k.uncommitted[partition] = record
+		}
+	}
+	k.retryFrom = make(map[int32]*kgo.Record)
+	k.retryPending = make(map[int32]*kgo.Record)
+	k.Client.AllowRebalance()
+}
+
 func (k *Source) AllowRebalance() {
 	if k.Client != nil {
 		k.Client.AllowRebalance()
@@ -179,6 +237,8 @@ func (k *Source) Commit(ctx context.Context) error {
 	defer k.Client.AllowRebalance()
 
 	if len(k.uncommitted) == 0 {
+		k.retryFrom = make(map[int32]*kgo.Record)
+		k.retryPending = make(map[int32]*kgo.Record)
 		return nil
 	}
 
@@ -191,6 +251,8 @@ func (k *Source) Commit(ctx context.Context) error {
 
 	if len(recordsToCommit) == 0 {
 		k.uncommitted = make(map[int32]*kgo.Record)
+		k.retryFrom = make(map[int32]*kgo.Record)
+		k.retryPending = make(map[int32]*kgo.Record)
 		return nil
 	}
 
@@ -200,6 +262,8 @@ func (k *Source) Commit(ctx context.Context) error {
 	}
 
 	k.uncommitted = make(map[int32]*kgo.Record)
+	k.retryFrom = make(map[int32]*kgo.Record)
+	k.retryPending = make(map[int32]*kgo.Record)
 	return nil
 }
 

@@ -221,6 +221,8 @@ func (s *healthTestSource) Commit(context.Context) error {
 
 func (*healthTestSource) AllowRebalance() {}
 
+func (*healthTestSource) Retry() {}
+
 func (s *healthTestSource) Close(context.Context) error {
 	s.close.Do(func() { close(s.closed) })
 	return nil

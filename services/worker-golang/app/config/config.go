@@ -12,6 +12,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+const DefaultDependencyTimeout = 10 * time.Second
+
 type Config struct {
 	Environment string
 	LogLevel    zapcore.Level
@@ -19,11 +21,12 @@ type Config struct {
 	ServiceName    string
 	ServiceVersion string
 	// batch processing configuration
-	BatchSize      int
-	FlushInterval  time.Duration
-	LivenessWindow time.Duration
-	ServerIP       string
-	ServerPort     int
+	BatchSize         int
+	FlushInterval     time.Duration
+	LivenessWindow    time.Duration
+	DependencyTimeout time.Duration
+	ServerIP          string
+	ServerPort        int
 	// parallel processing configuration
 	WorkerCount int // number of workers
 	ParallelN   int // number of parallel workers at a time
@@ -49,6 +52,14 @@ func Load() (*Config, error) {
 	batchSize := getNumEnv("BATCH_SIZE", 5)
 	flushInterval := getDurationEnv("FLUSH_INTERVAL", 1*time.Second)
 	livenessWindow := getDurationEnv("LIVENESS_WINDOW", 30*time.Second)
+	dependencyTimeout := getDurationEnv("DEPENDENCY_TIMEOUT", DefaultDependencyTimeout)
+	if dependencyTimeout <= 0 {
+		fmt.Fprintf(os.Stderr, "Invalid duration environment variable DEPENDENCY_TIMEOUT: must be positive, using default value %s\n", DefaultDependencyTimeout)
+		dependencyTimeout = DefaultDependencyTimeout
+	}
+	if dependencyTimeout >= livenessWindow {
+		return nil, fmt.Errorf("DEPENDENCY_TIMEOUT (%s) must be less than LIVENESS_WINDOW (%s)", dependencyTimeout, livenessWindow)
+	}
 	serverIP := getEnv("SERVER_IP", "0.0.0.0")
 	serverPort := getNumEnv("SERVER_PORT", 8080)
 	// parallel processing configuration
@@ -62,21 +73,22 @@ func Load() (*Config, error) {
 	dbUrl := getEnv("DB_URL", "postgres://postgres:password@localhost:5432/safezone")
 
 	return &Config{
-		Environment:    environment,
-		LogLevel:       logLevel,
-		ServiceName:    serviceName,
-		ServiceVersion: serviceVersion,
-		BatchSize:      batchSize,
-		FlushInterval:  flushInterval,
-		LivenessWindow: livenessWindow,
-		ServerIP:       serverIP,
-		ServerPort:     serverPort,
-		WorkerCount:    workerCount,
-		ParallelN:      parallelN,
-		KafkaBroker:    kafkaBroker,
-		KafkaGroupID:   kafkaGroupID,
-		KafkaTopic:     kafkaTopic,
-		DBUrl:          dbUrl,
+		Environment:       environment,
+		LogLevel:          logLevel,
+		ServiceName:       serviceName,
+		ServiceVersion:    serviceVersion,
+		BatchSize:         batchSize,
+		FlushInterval:     flushInterval,
+		LivenessWindow:    livenessWindow,
+		DependencyTimeout: dependencyTimeout,
+		ServerIP:          serverIP,
+		ServerPort:        serverPort,
+		WorkerCount:       workerCount,
+		ParallelN:         parallelN,
+		KafkaBroker:       kafkaBroker,
+		KafkaGroupID:      kafkaGroupID,
+		KafkaTopic:        kafkaTopic,
+		DBUrl:             dbUrl,
 	}, nil
 }
 

@@ -7,10 +7,12 @@ package requirements_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kfake"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kmsg"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -42,6 +45,7 @@ func quietLogger() *logger.ContextLogger {
 // broker is an in-process Kafka with one topic, plus a client to produce and inspect.
 type broker struct {
 	addr string
+	c    *kfake.Cluster
 	cl   *kgo.Client
 	adm  *kadm.Client
 }
@@ -59,7 +63,7 @@ func newBroker(t *testing.T, partitions int32) *broker {
 		t.Fatalf("broker client: %v", err)
 	}
 	t.Cleanup(cl.Close)
-	return &broker{addr: addr, cl: cl, adm: kadm.NewClient(cl)}
+	return &broker{addr: addr, c: c, cl: cl, adm: kadm.NewClient(cl)}
 }
 
 // replayTrace is the trace ID every test event carries. A trace ID names a request, not an
@@ -124,6 +128,33 @@ func (b *broker) committedAt(t *testing.T, partition int32) int64 {
 	return now[partition]
 }
 
+// outage makes the broker fail every request of the given kind (key -1: every request,
+// the harness's own included) until the returned function is called. A refused request has
+// its connection closed, as a broker going away does; a silent one is read and never
+// answered, as a broker that hangs does.
+func (b *broker) outage(t *testing.T, key int16, silent bool) (end func()) {
+	t.Helper()
+	var down atomic.Bool
+	down.Store(true)
+	b.c.ControlKey(key, func(kmsg.Request) (kmsg.Response, error, bool) {
+		b.c.KeepControl()
+		if !down.Load() {
+			return nil, nil, false
+		}
+		if silent {
+			return nil, nil, true
+		}
+		return nil, errors.New("broker unreachable"), true
+	})
+	var once sync.Once
+	end = func() { once.Do(func() { down.Store(false) }) }
+	t.Cleanup(end) // runs before the worker is stopped, so its shutdown commit is answered
+	return end
+}
+
+// offsetCommit is the request key of OffsetCommit.
+const offsetCommit int16 = 8
+
 // members returns how many members the consumer group has right now.
 func (b *broker) members() int {
 	described, err := b.adm.DescribeGroups(context.Background(), group)
@@ -140,12 +171,20 @@ type store struct {
 	mu       sync.Mutex
 	delay    time.Duration // time one write takes
 	fail     error         // when set, every write fails
+	reject   int           // when set, every write holding an event with this case count fails, as a database rejects a batch for its content
 	hang     chan struct{} // when set, every write waits until it is closed: the database took the call and does not answer
 	cases    map[string]int
 	seen     map[int]bool // every case count ever persisted
 	tried    map[int]bool // every case count the worker ever tried to persist
 	flushes  int
 	attempts int
+}
+
+// setFail makes every later write fail with err, or succeed again when err is nil.
+func (s *store) setFail(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.fail = err
 }
 
 func newStore() *store {
@@ -179,6 +218,11 @@ func (s *store) Flush(ctx context.Context, buffer *[]event.CovidEvent) error {
 	defer s.mu.Unlock()
 	if s.fail != nil {
 		return s.fail
+	}
+	for _, e := range *buffer {
+		if s.reject != 0 && e.Payload.Cases == s.reject {
+			return fmt.Errorf("write rejected: event %d", s.reject)
+		}
 	}
 	for _, e := range *buffer {
 		if err := fitsCaseTable(e); err != nil {
@@ -274,6 +318,7 @@ type workerOpts struct {
 	flushInterval time.Duration // default 50ms
 	validate      bool          // check events against areas, as production does
 	db            *sqlx.DB      // the worker's database connection, as production holds one
+	timeout       time.Duration // dependency timeout; zero leaves the config's zero value
 }
 
 // running is one worker: its own group member, as each pod is.
@@ -297,7 +342,7 @@ func startWorker(t *testing.T, b *broker, o workerOpts) *running {
 	w := &worker.Worker{
 		Source: src,
 		Sink:   o.sink,
-		Config: &config.Config{BatchSize: o.batch, FlushInterval: o.flushInterval},
+		Config: &config.Config{BatchSize: o.batch, FlushInterval: o.flushInterval, DependencyTimeout: o.timeout},
 		Logger: log,
 		ID:     o.id,
 		DB:     o.db,
@@ -314,6 +359,16 @@ func startWorker(t *testing.T, b *broker, o workerOpts) *running {
 	}()
 	t.Cleanup(r.stop)
 	return r
+}
+
+// exited reports whether the worker's Run has returned.
+func (r *running) exited() bool {
+	select {
+	case <-r.done:
+		return true
+	default:
+		return false
+	}
 }
 
 // stop ends the worker the way a stopping pod does, and waits for it to exit.

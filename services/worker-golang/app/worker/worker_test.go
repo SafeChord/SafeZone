@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 
 	"go.uber.org/zap/zapcore"
@@ -179,61 +180,222 @@ func TestWorker_ValidationReject(t *testing.T) {
 	}
 }
 
-// TestWorker_SourceError: non-context error from source → worker returns error
+// TestWorker_SourceError: a non-context poll error is logged and the worker keeps polling.
 func TestWorker_SourceError(t *testing.T) {
 	src := NewMockSource()
 	sink := &MockSink{}
 	w := newTestWorker(src, sink)
 
-	done := runAsync(context.Background(), w)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := runAsync(ctx, w)
 	src.PushError(errors.New("kafka connection lost"))
-	err := <-done
+	src.Push(makeEvent(1))
 
-	if err == nil {
-		t.Fatal("expected error from worker, got nil")
+	if !waitFor(t, time.Second, func() bool { return sink.FlushedCount() == 1 }) {
+		t.Fatal("worker did not continue polling and persist the event after a poll error")
 	}
-}
-
-// TestWorker_TimeoutFlushError verifies that a Flush failure on the timeout path returns an error (WG-8).
-func TestWorker_TimeoutFlushError(t *testing.T) {
-	src := NewMockSource()
-	flushErr := errors.New("db down on timeout flush")
-	sink := &MockSink{FlushError: flushErr}
-	w := newTestWorker(src, sink)
-
-	done := runAsync(context.Background(), w)
-	src.Push(makeEvent(0))
-
 	select {
 	case err := <-done:
-		if !errors.Is(err, flushErr) {
-			t.Fatalf("expected flush error %v, got %v", flushErr, err)
-		}
-	case <-time.After(1 * time.Second):
-		t.Fatal("worker did not exit on timeout flush error")
+		t.Fatalf("worker exited after poll recovery: %v", err)
+	default:
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("worker returned an error on cancellation: %v", err)
+	}
+	if sink.FlushedCount() != 1 {
+		t.Fatalf("expected worker to persist the event after poll recovery, got %d flushes", sink.FlushedCount())
 	}
 }
 
-// TestWorker_BatchFlushError verifies that a Flush failure on batch size path returns an error.
-func TestWorker_BatchFlushError(t *testing.T) {
+// TestWorker_TimeoutFlushError verifies a failed timeout flush is replayed on a later poll.
+func TestWorker_TimeoutFlushError(t *testing.T) {
 	src := NewMockSource()
-	flushErr := errors.New("db down on batch flush")
-	sink := &MockSink{FlushError: flushErr}
+	sink := &failOnceSink{firstErr: errors.New("db down on timeout flush")}
 	w := newTestWorker(src, sink)
 
-	done := runAsync(context.Background(), w)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := runAsync(ctx, w)
+	src.Push(makeEvent(0))
+
+	if !waitFor(t, time.Second, func() bool { return sink.successfulFlushes() == 1 }) {
+		t.Fatal("worker did not replay and persist the event after the failed flush")
+	}
+	if sink.attempts() < 2 {
+		t.Fatalf("expected failed write followed by replay, got %d attempts", sink.attempts())
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("worker returned an error on cancellation: %v", err)
+	}
+}
+
+// TestWorker_BatchFlushError verifies that a batch write failure is replayed, not dropped.
+func TestWorker_BatchFlushError(t *testing.T) {
+	src := NewMockSource()
+	sink := &failOnceSink{firstErr: errors.New("db down on batch flush")}
+	w := newTestWorker(src, sink)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := runAsync(ctx, w)
 	for i := 0; i < 3; i++ {
 		src.Push(makeEvent(i))
 	}
 
+	if !waitFor(t, time.Second, func() bool { return sink.successfulFlushes() == 1 }) {
+		t.Fatal("worker did not replay and persist the batch after the failed flush")
+	}
+	if got := sink.persistedEvents(); got != 3 {
+		t.Fatalf("persisted %d events after retry, want 3", got)
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("worker returned an error on cancellation: %v", err)
+	}
+}
+
+func TestWorker_FailedCommitRetriesOnIdleTurn(t *testing.T) {
+	src := NewMockSource()
+	src.PushCommitError(errors.New("broker unavailable"))
+	sink := &MockSink{}
+	w := newTestWorker(src, sink)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := runAsync(ctx, w)
+	src.Push(makeEvent(4))
+
+	if !waitFor(t, time.Second, func() bool { return src.CommittedCount() == 1 }) {
+		t.Fatal("worker did not retry the failed commit on an idle turn")
+	}
+	if src.CommitAttempts() < 2 {
+		t.Fatalf("expected a failed commit and an idle-turn retry, got %d attempts", src.CommitAttempts())
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("worker returned an error on cancellation: %v", err)
+	}
+}
+
+func TestWorker_CanceledWriteIsFlushedDuringShutdown(t *testing.T) {
+	src := NewMockSource()
+	sink := &cancelDuringFlushSink{started: make(chan struct{})}
+	w := newTestWorker(src, sink)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := runAsync(ctx, w)
+	src.Push(makeEvent(7))
+
+	select {
+	case <-sink.started:
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("worker did not start the write")
+	}
+	cancel()
 	select {
 	case err := <-done:
-		if !errors.Is(err, flushErr) {
-			t.Fatalf("expected flush error %v, got %v", flushErr, err)
+		if err != nil {
+			t.Fatalf("worker returned an error on cancellation: %v", err)
 		}
-	case <-time.After(1 * time.Second):
-		t.Fatal("worker did not exit on batch flush error")
+	case <-time.After(time.Second):
+		t.Fatal("worker did not finish shutdown flush")
 	}
+	if got := sink.persistedEvents(); got != 1 {
+		t.Fatalf("shutdown persisted %d events, want 1", got)
+	}
+	if src.CommittedCount() == 0 {
+		t.Fatal("shutdown did not commit offsets after persisting the in-flight event")
+	}
+}
+
+func waitFor(t *testing.T, timeout time.Duration, condition func() bool) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if condition() {
+			return true
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return condition()
+}
+
+type failOnceSink struct {
+	mu        sync.Mutex
+	firstErr  error
+	attempt   int
+	persisted int
+}
+
+func (s *failOnceSink) Flush(_ context.Context, events *[]event.CovidEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.attempt++
+	if s.attempt == 1 {
+		return s.firstErr
+	}
+	s.persisted += len(*events)
+	*events = (*events)[:0]
+	return nil
+}
+
+func (*failOnceSink) Close(context.Context) error { return nil }
+
+func (s *failOnceSink) attempts() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.attempt
+}
+
+func (s *failOnceSink) successfulFlushes() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.attempt == 0 || s.persisted == 0 {
+		return 0
+	}
+	return 1
+}
+
+func (s *failOnceSink) persistedEvents() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.persisted
+}
+
+type cancelDuringFlushSink struct {
+	mu        sync.Mutex
+	started   chan struct{}
+	calls     int
+	persisted int
+}
+
+func (s *cancelDuringFlushSink) Flush(ctx context.Context, events *[]event.CovidEvent) error {
+	s.mu.Lock()
+	s.calls++
+	call := s.calls
+	if call == 1 {
+		close(s.started)
+	}
+	s.mu.Unlock()
+	if call == 1 {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	s.mu.Lock()
+	s.persisted += len(*events)
+	s.mu.Unlock()
+	*events = (*events)[:0]
+	return nil
+}
+
+func (*cancelDuringFlushSink) Close(context.Context) error { return nil }
+
+func (s *cancelDuringFlushSink) persistedEvents() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.persisted
 }
 
 // TestWorker_CommitCalledAfterSuccessfulFlush verifies offsets are committed after flush.
