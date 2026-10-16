@@ -36,6 +36,44 @@ func TestWK_R3_EventsNotPersistedAreDeliveredAgain(t *testing.T) {
 	})
 }
 
+// WK-R3: Progress is recorded only after persistence.
+// Scenario: stop before persistence, while writes for another partition succeed.
+//
+// The database rejects every write holding one event (ADR-035: a batch rejected for its
+// content), and accepts the events of another partition that keep arriving meanwhile. Those
+// successful writes must not carry the rejected event's partition forward.
+func TestWK_R3_RejectedEventIsNotCommittedByAnotherPartitionsWrites(t *testing.T) {
+	const others = 20
+	b := newBroker(t, 2)
+	b.produceEvent(t, 0, newEvent(101, "region-0"))
+
+	db := newStore()
+	db.reject = 101
+	first := startWorker(t, b, workerOpts{id: 0, sink: db, batch: 10, timeout: dependencyTimeout})
+	eventually(t, 20*time.Second, "the worker to attempt the rejected write", func() bool { return db.attemptCount() > 0 })
+
+	for i := 0; i < others; i++ {
+		b.produceEvent(t, 1, newEvent(200+i, "region-1"))
+		time.Sleep(30 * time.Millisecond)
+		if at := b.committedAt(t, 0); at != 0 {
+			t.Fatalf("partition 0 committed at %d although its only event was never persisted", at)
+		}
+	}
+	eventually(t, 20*time.Second, "the other partition's events to be persisted and committed", func() bool {
+		return b.committedAt(t, 1) == others
+	})
+	if at := b.committedAt(t, 0); at != 0 {
+		t.Fatalf("partition 0 committed at %d although its only event was never persisted", at)
+	}
+	first.stop()
+
+	up := newStore()
+	startWorker(t, b, workerOpts{id: 1, sink: up, batch: 10, timeout: dependencyTimeout})
+	eventually(t, 30*time.Second, "the rejected event to be delivered again and persisted", func() bool {
+		return up.has(101)
+	})
+}
+
 // WK-R5: An invalid event never blocks the stream.
 // Scenario: invalid event between valid ones.
 func TestWK_R5_InvalidEventIsSkippedAndNotDeliveredAgain(t *testing.T) {

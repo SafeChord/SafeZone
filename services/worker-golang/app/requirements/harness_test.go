@@ -171,6 +171,7 @@ type store struct {
 	mu       sync.Mutex
 	delay    time.Duration // time one write takes
 	fail     error         // when set, every write fails
+	reject   int           // when set, every write holding an event with this case count fails, as a database rejects a batch for its content
 	hang     chan struct{} // when set, every write waits until it is closed: the database took the call and does not answer
 	cases    map[string]int
 	seen     map[int]bool // every case count ever persisted
@@ -217,6 +218,11 @@ func (s *store) Flush(ctx context.Context, buffer *[]event.CovidEvent) error {
 	defer s.mu.Unlock()
 	if s.fail != nil {
 		return s.fail
+	}
+	for _, e := range *buffer {
+		if s.reject != 0 && e.Payload.Cases == s.reject {
+			return fmt.Errorf("write rejected: event %d", s.reject)
+		}
 	}
 	for _, e := range *buffer {
 		if err := fitsCaseTable(e); err != nil {
