@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+
+	"go.uber.org/zap/zapcore"
 	"time"
 
 	"safezone.service.worker-golang/app/config"
@@ -14,7 +16,7 @@ import (
 )
 
 func testLogger() *logger.ContextLogger {
-	return logger.NewContextLogger("test", "0.0.0", "test")
+	return logger.NewContextLogger("test", "0.0.0", "test", zapcore.DebugLevel)
 }
 
 func newTestWorker(src worker.EventSource, sink worker.EventSink) *worker.Worker {

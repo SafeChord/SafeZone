@@ -6,6 +6,8 @@ import (
 	"math"
 	"testing"
 
+	"go.uber.org/zap/zapcore"
+
 	"safezone.service.worker-golang/app/event"
 	"safezone.service.worker-golang/app/logger"
 )
@@ -36,7 +38,7 @@ func newValidator() *event.CovidValidator {
 		regions: map[string]int{"1|Zhongzheng": 10},
 	}
 	return event.NewCovidValidator(
-		logger.NewContextLogger("test", "0.0.0", "test"),
+		logger.NewContextLogger("test", "0.0.0", "test", zapcore.DebugLevel),
 		cache,
 	)
 }

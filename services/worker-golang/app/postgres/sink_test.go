@@ -9,6 +9,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/jmoiron/sqlx"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"safezone.service.worker-golang/app/event"
 	"safezone.service.worker-golang/app/logger"
@@ -16,7 +17,7 @@ import (
 )
 
 func testLogger() *logger.ContextLogger {
-	l := logger.NewContextLogger("test", "0.0.0", "test")
+	l := logger.NewContextLogger("test", "0.0.0", "test", zapcore.DebugLevel)
 	l.Logger = zap.NewNop()
 	return l
 }

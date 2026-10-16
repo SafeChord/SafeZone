@@ -18,19 +18,19 @@ type ContextLogger struct {
 	TraceIDKey  contextKey
 }
 
-// Init initializes the logger with the given service name, version, and environment.
-func NewContextLogger(serviceName, serviceVersion, env string) *ContextLogger {
-	var err error
-	var baseLogger *zap.Logger
-
+// NewContextLogger creates a logger for the given service name, version, and environment that logs at level and above.
+func NewContextLogger(serviceName, serviceVersion, env string, level zapcore.Level) *ContextLogger {
 	// Set the logger configuration based on the environment.
 	// Production and staging use structured JSON logs; development uses human-readable logs.
+	var zapConfig zap.Config
 	if env == "staging" || env == "prod" {
-		baseLogger, err = zap.NewProduction()
+		zapConfig = zap.NewProductionConfig()
 	} else {
-		baseLogger, err = zap.NewDevelopment()
+		zapConfig = zap.NewDevelopmentConfig()
 	}
+	zapConfig.Level = zap.NewAtomicLevelAt(level)
 
+	baseLogger, err := zapConfig.Build()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: Failed to create logger: %v\n", err)
 		os.Exit(1)
