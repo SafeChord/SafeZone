@@ -3,6 +3,27 @@
 All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.8] - 2026-10-20
+
+### Added
+
+- **Worker health endpoint (#71)**: The worker serves `GET /health`, which reports whether its consume loop is still turning within `LIVENESS_WINDOW` (default 30s). It does not query Kafka or PostgreSQL, so a dependency outage does not make every worker unhealthy at once.
+
+### Changed
+
+- **Worker batching (#64)**: The worker writes once per poll instead of buffering events across polls. `BATCH_SIZE` is now the most events one poll returns, and `FLUSH_INTERVAL` how long one poll waits.
+- **Contract enforcement (#70)**: The event and table contracts are now checked by tests in every service that produces or consumes them.
+- **Internal**: The shared utils are a regular directory instead of a submodule (#66), the worker's packages are regrouped (#81), and local Compose uses the platform's infra images and a three-partition Kafka topic (#27, #74). No application-facing changes.
+
+### Fixed
+
+- **Worker offset commits (#64)**: Offsets are committed only after the events are stored, and a worker that loses a partition can no longer commit for it. This fixes a consumer-group lag on staging that never drained and held the autoscaler at three replicas.
+- **Worker rides out outages (#98)**: A failed poll, write or offset commit no longer stops the worker. It retries with backoff, and `DEPENDENCY_TIMEOUT` (default 10s, must stay below `LIVENESS_WINDOW`) bounds every write and commit. An outage now shows as consumer lag and ERROR logs rather than pod restarts.
+- **Worker skips events the case table cannot hold (#85)**: Events with a non-calendar date or more cases than the table can store are logged and skipped, instead of failing the whole batch and stalling the partition.
+- **Worker startup and logging (#83, #95)**: The worker exits with a clear error when it cannot load its area tables, every log line carries the worker ID, `LOG_LEVEL` is honoured, and the image no longer bakes in a `.env` file.
+- **Ingestor validation and publish errors (#82)**: The ingest API rejects records outside the event contract (non-calendar dates, case counts above the table's limit) and answers 500 when a publish fails or is not acknowledged within `KAFKA_PUBLISH_TIMEOUT` (default 4s). The default `KAFKA_TOPIC` is now `covid.case.data`.
+- **Simulator error reporting (#84)**: A trigger fails with 500 when the ingest API rejects a record or does not answer, and a trigger with no data answers 404.
+
 ## [0.3.7] - 2026-06-25
 
 ### Changed
