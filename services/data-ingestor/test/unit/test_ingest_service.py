@@ -1,10 +1,13 @@
 # test/unit/test_ingest_service.py
+import asyncio
 import json
 import logging
 
 import pytest  # type: ignore
+from jsonschema import Draft202012Validator  # type: ignore
 from unittest.mock import AsyncMock
 
+from exceptions.custom import KafkaUnavailableError
 from utils.pydantic_model.request import CovidDataModel
 from services.ingest_service import generate_partition_key, publish_event
 
@@ -56,11 +59,55 @@ async def test_publish_event(case, logger):
 async def test_publish_event_no_producer(case, logger):
     payload = CovidDataModel(**case["payload"])
 
-    # Should not raise — just log error and return
+    # ING-R4: Should raise KafkaUnavailableError when producer is unavailable
+    with pytest.raises(KafkaUnavailableError):
+        await publish_event(
+            producer=None,
+            topic=case["topic"],
+            payload=payload,
+            trace_id=case["trace_id"],
+        )
+    logger.debug("publish_event raised KafkaUnavailableError when producer is None.")
+
+
+@pytest.mark.asyncio
+async def test_publish_event_timeout(logger):
+    async def never_completes(*args, **kwargs):
+        await asyncio.Event().wait()
+
+    mock_producer = AsyncMock()
+    mock_producer.send_and_wait.side_effect = never_completes
+    payload = CovidDataModel(date="2023-03-20", city="台北市", region="信義區", cases=50)
+
+    with pytest.raises(KafkaUnavailableError, match="Kafka publish timed out"):
+        await publish_event(
+            producer=mock_producer,
+            topic="covid.case.data",
+            payload=payload,
+            trace_id="test-trace",
+            timeout=0.05,
+        )
+    logger.debug("publish_event raised KafkaUnavailableError on timeout.")
+
+
+# ING-R2: every event the ingestor publishes satisfies the event contract.
+# Format checking is on, so `format: date` is enforced and not just an annotation.
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", publish_event_cases, ids=lambda c: c["test_describes"])
+async def test_ing_r2_published_event_satisfies_contract(case):
+    with open("/contract/covid_event.json", encoding="utf-8") as f:
+        validator = Draft202012Validator(
+            json.load(f), format_checker=Draft202012Validator.FORMAT_CHECKER
+        )
+    mock_producer = AsyncMock()
+
     await publish_event(
-        producer=None,
+        producer=mock_producer,
         topic=case["topic"],
-        payload=payload,
+        payload=CovidDataModel(**case["payload"]),
         trace_id=case["trace_id"],
     )
-    logger.debug("publish_event gracefully handled None producer.")
+
+    event = json.loads(mock_producer.send_and_wait.call_args[1]["value"])
+    errors = [e.message for e in validator.iter_errors(event)]
+    assert not errors, errors

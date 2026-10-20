@@ -18,4 +18,3 @@ async def startup_kafka():
 async def shutdown_kafka(producer: AIOKafkaProducer = None):
     if producer:
         await producer.stop()
-        producer = None

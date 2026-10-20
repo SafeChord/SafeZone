@@ -4,36 +4,10 @@ from fastapi import FastAPI, Request  # type: ignore
 from fastapi.responses import JSONResponse  # type: ignore
 from pydantic import ValidationError  # type: ignore
 
-from utils.pydantic_model.response import ErrorModel, APIResponse
-from exceptions.custom import (
-    InvalidDateRangeError,
-    APIValidationError,
-    ServiceValidationError,
-    EmptyDataError,
-)
+from exceptions.custom import EmptyDataError, ServiceValidationError
+from utils.pydantic_model.response import APIResponse, ErrorModel
 
 logger = logging.getLogger(__name__)
-
-
-async def invalid_date_range_error_handler(
-    request: Request, exc: InvalidDateRangeError
-):
-    logger.error(f"Invalid date range error: {exc}")
-
-    response = APIResponse(
-        success=False,
-        message="Invalid date range.",
-        errors=ErrorModel(
-            fields="date range",
-            summary="the 'start_date' must be before the 'end_date'.",
-            detail=str(exc),
-        ),
-    )
-
-    return JSONResponse(
-        content=response.model_dump(exclude_none=True),
-        status_code=400,
-    )
 
 
 async def empty_data_error_handler(request: Request, exc: EmptyDataError):
@@ -43,7 +17,6 @@ async def empty_data_error_handler(request: Request, exc: EmptyDataError):
         success=False,
         message="Empty data.",
         errors=ErrorModel(
-            fields="data",
             summary="No data available for the given date(s).",
             detail=str(exc),
         ),
@@ -51,7 +24,7 @@ async def empty_data_error_handler(request: Request, exc: EmptyDataError):
 
     return JSONResponse(
         content=response.model_dump(exclude_none=True),
-        status_code=500,
+        status_code=404,
     )
 
 
@@ -60,14 +33,26 @@ async def service_validation_error_handler(
 ):
     logger.error(f"Output data validation error in service: {exc}")
 
+    if exc.errors:
+        error_models = [
+            ErrorModel(
+                field=str(err["loc"][-1]) if err.get("loc") else None,
+                summary=err.get("msg", "Output data validation failed."),
+                detail=str(err),
+            )
+            for err in exc.errors
+        ]
+        errors = error_models if len(error_models) > 1 else error_models[0]
+    else:
+        errors = ErrorModel(
+            summary="Output data validation failed.",
+            detail=str(exc),
+        )
+
     response = APIResponse(
         success=False,
         message="Validation error in the service.",
-        errors=ErrorModel(
-            fields="output data",
-            summary="Output data validation failed.",
-            detail=str(exc),
-        ),
+        errors=errors,
     )
 
     return JSONResponse(
@@ -76,36 +61,29 @@ async def service_validation_error_handler(
     )
 
 
-async def api_validation_error_handler(request: Request, exc: APIValidationError):
-    logger.error(f"API validation error: {exc}")
-
-    response = APIResponse(
-        success=False,
-        message="Validation error in the API.",
-        errors=ErrorModel(
-            fields="input data",
-            summary="Input data validation failed.",
-            detail=str(exc),
-        ),
-    )
-
-    return JSONResponse(
-        content=response.model_dump(exclude_none=True),
-        status_code=422,
-    )
-
-
 async def validation_error_handler(request: Request, exc: ValidationError):
     logger.error(f"Validation error: {exc}")
+
+    if exc.errors():
+        error_models = [
+            ErrorModel(
+                field=str(err["loc"][-1]) if err.get("loc") and len(err["loc"]) > 0 else None,
+                summary=err.get("msg", "Input data validation failed."),
+                detail=str(err),
+            )
+            for err in exc.errors()
+        ]
+        errors = error_models if len(error_models) > 1 else error_models[0]
+    else:
+        errors = ErrorModel(
+            summary="Input data validation failed.",
+            detail=str(exc),
+        )
 
     response = APIResponse(
         success=False,
         message="Validation error.",
-        errors=ErrorModel(
-            fields="input data",
-            summary="Input data validation failed.",
-            detail=str(exc),
-        ),
+        errors=errors,
     )
 
     return JSONResponse(
@@ -121,7 +99,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         success=False,
         message="Internal server error.",
         errors=ErrorModel(
-            fields="unknown",
             summary="Unexpected error occurred during processing.",
             detail=str(exc),
         ),
@@ -133,15 +110,8 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# Register the exception handlers
 def register_exception_handlers(app: FastAPI):
-    # in service exception handlers
-    app.add_exception_handler(InvalidDateRangeError, invalid_date_range_error_handler)
     app.add_exception_handler(EmptyDataError, empty_data_error_handler)
     app.add_exception_handler(ServiceValidationError, service_validation_error_handler)
-    app.add_exception_handler(APIValidationError, api_validation_error_handler)
-    # global exception handler
-    app.add_exception_handler(
-        ValidationError, api_validation_error_handler
-    )  # handle pydantic validation errors globally
+    app.add_exception_handler(ValidationError, validation_error_handler)
     app.add_exception_handler(Exception, global_exception_handler)

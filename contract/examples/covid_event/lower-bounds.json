@@ -1,0 +1,12 @@
+{
+  "event_type": "covid_event",
+  "event_time": 0,
+  "trace_id": "-",
+  "payload": {
+    "date": "2020-01-01",
+    "city": "市",
+    "region": "區",
+    "cases": 1
+  },
+  "version": "0.1.0"
+}

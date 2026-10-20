@@ -1,0 +1,165 @@
+import datetime
+from typing import Optional, Literal
+
+from pydantic import BaseModel, Field, field_validator, model_validator  # type: ignore
+
+
+# --- payload/parameter models  --- #
+# cli relay models
+## endpoint /dataflow/simulate
+class SimulateModel(BaseModel):
+    date: datetime.date = Field(
+        ..., description="Invalid date format. Expected 'YYYY-MM-DD'."
+    )
+    end_date: Optional[datetime.date] = Field(
+        None, description="Invalid date format. Expected 'YYYY-MM-DD'."
+    )
+
+## endpoint /db/init
+class DBInitModel(BaseModel):
+    force: bool = Field(
+        False, description="Force re-initialize the database with administrative data."
+    )
+
+## endpoint /db/prune
+class DBPruneModel(BaseModel):
+    year: Optional[int] = Field(
+        None, description="Delete all covid_cases of this calendar year (e.g. 1970)."
+    )
+    all: bool = Field(
+        False, description="Delete ALL covid_cases records (full truncate)."
+    )
+
+    @model_validator(mode="after")
+    def exactly_one_scope(self):
+        # A scope is mandatory and unambiguous: exactly one of --year / --all.
+        if bool(self.year is not None) == bool(self.all):
+            raise ValueError(
+                "Specify exactly one scope: --year YYYY or --all."
+            )
+        return self
+
+## endpoint /dataflow/verify
+class VerifyModel(BaseModel):
+    date: datetime.date = Field(
+        ..., description="Invalid date format. Expected 'YYYY-MM-DD'."
+    )
+    interval: int = Field(1, description="Invalid interval format. Expected integer.")
+    city: Optional[str] = Field(
+        None, description="The length of city name is between 1 to 50."
+    )
+    region: Optional[str] = Field(
+        None, description="The length of region name is between 1 to 50."
+    )
+    ratio: bool = Field(False, description="The data is ratio of population or not.")
+
+
+## endpoint /health
+class HealthCheckModel(BaseModel):
+    target: Optional[str] = Field(None, description="Component (db, redis, mkdoc)")
+    all: bool = Field(False, description="Check all components")
+
+
+## endpoint /time/set，use SetTimeModel instead
+
+
+# analytics api models
+## endpoint /cases/national
+class NationalParameters(BaseModel):
+    now: datetime.date = Field(..., description="Date in 'YYYY-MM-DD' format.")
+    interval: Literal["1", "3", "7", "14", "30"] = Field(
+        ..., description="the aggergate data form number of days before now"
+    )
+
+
+## endpoint /cases/city
+class CityParameters(NationalParameters):
+    city: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="The length of city name is between 1 to 50.",
+    )
+    ratio: bool = Field(
+        False, description="Whether to return the ratio of cases to population."
+    )
+
+
+## endpoint /cases/region
+class RegionParameters(CityParameters):
+    region: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="The length of region name is between 1 to 50.",
+    )
+
+
+# simulator models
+## endpoint /simulate/interval
+class IntervalParameters(BaseModel):
+    start_date: datetime.date = Field(
+        ..., description="Start date in 'YYYY-MM-DD' format."
+    )
+    end_date: datetime.date = Field(..., description="End date in 'YYYY-MM-DD' format.")
+
+    @model_validator(mode="after")
+    def validate_dates(self):
+        if self.end_date < self.start_date:
+            raise ValueError("End date cannot be earlier than start date.")
+        return self
+
+
+## endpoint /simulate/daily
+class DailyParameters(BaseModel):
+    date: datetime.date = Field(..., description="Date in 'YYYY-MM-DD' format.")
+
+
+# ingestor models
+## endpoint /collect
+class CovidDataModel(BaseModel):
+    date: str = Field(
+        ...,
+        pattern=r"^\d{4}-\d{2}-\d{2}$", 
+        description="Invalid date format. Expected 'YYYY-MM-DD'."
+    )
+    city: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="The length of city name is between 1 to 50.",
+    )
+    region: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="The length of region name is between 1 to 50.",
+    )
+    cases: int = Field(
+        ...,
+        ge=1,
+        le=2147483647,
+        description="'cases' must be a positive integer between 1 and 2147483647.",
+    )
+
+    @field_validator("date")
+    @classmethod
+    def validate_calendar_date(cls, v: str) -> str:
+        try:
+            datetime.date.fromisoformat(v)
+        except ValueError as e:
+            raise ValueError(f"Invalid calendar date: {v}") from e
+        return v
+
+
+# time server models
+## endpoint /time/set
+class SetTimeModel(BaseModel):
+    mock: bool = Field(False, description="Indicates whether to enable mock time.")
+    mock_date: Optional[str] = Field(
+        None, description="Invalid date format. Expected 'YYYY-MM-DD'."
+    )
+    acceleration: Optional[int] = Field(
+        None, ge=1, le=10, description="Invalid acceleration format. Expected integer."
+    )
+    # 0: no acceleration, 1: 1x, 2: 2x, 3: 3x, etc.
