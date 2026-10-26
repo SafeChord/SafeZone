@@ -84,9 +84,11 @@ promote-%:
 	@echo "====== Done: $* ======"
 
 # special case for worker-golang (Go: build test image from source, not base binary)
+# go vet runs first: go test runs only a subset of its analyzers.
 test-worker-golang:
 	@echo "====== Testing: worker-golang ======"
 	@docker buildx build -t safezone-worker:$(VERSION)_test -f services/worker-golang/Dockerfile.test .
+	@docker run --rm safezone-worker:$(VERSION)_test go vet ./...
 	@docker run --rm safezone-worker:$(VERSION)_test
 	@docker rmi safezone-worker:$(VERSION)_test || true
 	@echo "====== Done: worker-golang ======"
