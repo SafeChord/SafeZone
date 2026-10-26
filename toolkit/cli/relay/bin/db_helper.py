@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session  # type: ignore
 from sqlalchemy.sql import text  # type: ignore
 
 # project imports
-from utils.db.schema import cities, regions, covid_cases, populations, metadata
+from utils.db.schema import cities, regions, populations, metadata
 from config.settings import DB_URL
 
 

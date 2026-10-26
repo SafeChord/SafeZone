@@ -1,6 +1,5 @@
 import os
 
-from dotenv import load_dotenv # type: ignore
 
 def get_setted_env(name: str) -> str:
     """Get the environment variable or return the default value."""

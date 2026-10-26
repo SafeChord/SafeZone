@@ -1,0 +1,7 @@
+# pyflakes (ruff's F rules) over the repository's Python: suspected bugs, not style.
+# The tag pins ruff, so a new release cannot fail a PR that changed nothing.
+FROM ghcr.io/astral-sh/ruff:0.17.2-alpine
+WORKDIR /src
+COPY . .
+# py313: the services' images are python:3.13-slim
+CMD ["ruff", "check", "--select", "F", "--target-version", "py313", "."]

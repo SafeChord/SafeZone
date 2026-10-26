@@ -150,7 +150,7 @@ def client_broken():
     """
     from fastapi.testclient import TestClient
     from main import create_app
-    from api.dependencies import get_db_session  # noqa: RED until Phase 2
+    from api.dependencies import get_db_session
 
     def broken_db():
         raise RuntimeError("Simulated unexpected DB failure")

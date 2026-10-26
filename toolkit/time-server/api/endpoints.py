@@ -1,7 +1,6 @@
 # toolkit/time-server/api/endpoints.py
-import json
 import logging
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 
 import redis  # type: ignore
 from fastapi import APIRouter  # type: ignore

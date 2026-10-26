@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-import sys
 import uuid
-import logging
 
 import typer  # type: ignore
 import rich  # type: ignore

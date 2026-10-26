@@ -1,8 +1,6 @@
 import logging
-import time
 from datetime import datetime, timedelta
 
-import plotly.graph_objects as go  # type: ignore
 import dash  # type: ignore
 from dash import Output, Input, State  # type: ignore
 

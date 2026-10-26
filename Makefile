@@ -1,7 +1,7 @@
 .PHONY: help build-all push-all promote-all build-% test-% build-tool-% push-% promote-% \
         test-worker-golang test-dashboard build-tool-cli build-tool-all smoke-test \
         ci-all ci-% ci-dashboard-v2 ci-worker-golang promote-cli check-data-fixtures \
-        go-worker-golang test-contract
+        go-worker-golang test-contract lint-python
 
 # ------------------------
 # 0. global variables
@@ -115,6 +115,14 @@ test-contract:
 	@docker rmi safezone-contract:$(VERSION)_test || true
 	@echo "====== Done: contract ======"
 
+# pyflakes over every Python directory (Dockerfile.lint); the image copies the source, so it runs under act too
+lint-python:
+	@echo "====== Linting: python ======"
+	@docker buildx build -t safezone-lint:$(VERSION) -f Dockerfile.lint .
+	@docker run --rm safezone-lint:$(VERSION)
+	@docker rmi safezone-lint:$(VERSION) || true
+	@echo "====== Done: python ======"
+
 # special case for dashboard-v2 (Node/vitest)
 test-dashboard-v2:
 	@echo "====== Testing: dashboard-v2 ======"
@@ -162,7 +170,7 @@ ci-dashboard-v2: test-dashboard-v2 build-dashboard-v2
 # Go: test first (independent), then build prod image
 ci-worker-golang: test-worker-golang build-worker-golang
 
-ci-all: $(addprefix ci-, $(SERVICE_NAMES)) test-contract
+ci-all: lint-python $(addprefix ci-, $(SERVICE_NAMES)) test-contract
 	@echo "[INFO] ALL CI PIPELINES PASSED!"
 	
 build-tool-all: $(addprefix build-tool-, $(TOOL_NAMES))
@@ -226,6 +234,7 @@ help:
 	@echo "  ci-all               Run CI for all services (correct build/test order per language)"
 	@echo "  test-<service>       Run tests for a specific service (e.g., test-analytics-api)"
 	@echo "  test-contract        Run the contract tests (utils/ and example events against contract/)"
+	@echo "  lint-python          Run pyflakes (ruff's F rules) over every Python directory"
 	@echo "  go-worker-golang     Run a go command for worker-golang in a container (ARGS=\"test -race ./...\")"
 	@echo "  build-<service>      Build a specific service (e.g., build-analytics-api)"
 	@echo "  build-tool-<tool>    Build a specific tool"

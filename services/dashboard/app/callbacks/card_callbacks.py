@@ -3,7 +3,6 @@ import logging
 from dash import Output, Input # type: ignore
 
 from components.card import get_cases_card, get_top_cities_card
-from services.update_cases import get_national_cases, get_city_data
 
 
 logger = logging.getLogger(__name__)

@@ -119,7 +119,7 @@ def run_flow(csv_path, max_retries, interval):
                 if attempt < max_retries:
                     time.sleep(interval)
                     continue
-                print(f"  FAILED — command returned no output", file=sys.stderr)
+                print("  FAILED — command returned no output", file=sys.stderr)
                 return False
 
             actual = resolve_jq_path(output, jq_path)

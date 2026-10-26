@@ -71,5 +71,5 @@ def test_update_cases_network_error(case):
     responses.add(responses.GET, url, 
                     status=status_code, body= ConnectionError(),)
     # call the function and assert the error
-    with pytest.raises(ConnectionError) as exc_info:
+    with pytest.raises(ConnectionError):
         get_national_cases(case["params"]["now"], case["params"]["interval"])
