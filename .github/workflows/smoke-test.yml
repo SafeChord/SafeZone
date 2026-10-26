@@ -5,6 +5,10 @@ on:
     branches:
       - dev
       - 'release/*'
+    # A PR whose every changed file is Markdown starts no run, so it has no check.
+    # If this check is ever made required, move the skip into the job instead.
+    paths-ignore:
+      - '**.md'
 
 jobs:
   validation:
