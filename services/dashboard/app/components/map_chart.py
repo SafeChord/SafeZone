@@ -32,7 +32,7 @@ def get_city_geodata(city):
 def get_init_map():
     # map banner
     banner = html.H4(
-        f" 1970-01-01 ~ 1970-01-03 疫情風險圖 - 依病例數",
+        " 1970-01-01 ~ 1970-01-03 疫情風險圖 - 依病例數",
         id="risk-map-title",
         className="text-white bg-primary p-2",
     )
@@ -83,7 +83,7 @@ def get_init_map():
 # risk map of whole taiwan
 def get_tw_risk_map(city_risk):
     # risk map of whole taiwan with city level risk initialized
-    with open(f"/app/utils/geo_data/boundaries/geo_city.json", "r") as f:
+    with open("/app/utils/geo_data/boundaries/geo_city.json", "r") as f:
         geojson_data = json.load(f)
 
     return go.Figure(

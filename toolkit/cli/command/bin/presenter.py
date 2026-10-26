@@ -53,7 +53,7 @@ class Presenter:
 
         # if task was not successful，use default renderer
         if not response.get("success"):
-            self._render_default(data, trace_id)
+            self._render_default(data)
             return
         
         timestamp_str = response.get("timestamp", "No timestamp")

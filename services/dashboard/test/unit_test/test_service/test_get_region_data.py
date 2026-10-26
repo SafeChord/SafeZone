@@ -147,7 +147,7 @@ def test_update_map_params_error(mock_load_geo, case, frozen_time):
     "case", load_test_cases("cases_resp_error.json"), ids=get_case_describes
 )
 @responses.activate
-def test_update_map_params_error(mock_load_geo, case, frozen_time):
+def test_update_map_resp_error(mock_load_geo, case, frozen_time):
     # mock the load_taiwan_admin function
     mock_load_geo.return_value = case["mock_regions"]
     mock_date = "2023-06-26"

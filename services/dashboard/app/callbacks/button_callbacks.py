@@ -1,6 +1,6 @@
 import logging
 
-from dash import Input, Output, State # type: ignore
+from dash import Input, Output # type: ignore
 
 
 logger = logging.getLogger(__name__)

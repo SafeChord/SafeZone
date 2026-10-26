@@ -82,7 +82,7 @@ def _check_core(service):
         resp = requests.get(check_point + "/health")
         if resp.status_code != 200:
             return False
-    except requests.exceptions.RequestException as e:
+    except requests.exceptions.RequestException:
         return False
     return True
 

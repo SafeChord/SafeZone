@@ -4,7 +4,6 @@ from dash import html  # type: ignore
 import dash_bootstrap_components as dbc  # type: ignore
 
 from services.update_cases import get_national_cases
-from services.time_manager import get_now
 from components.trend_chart import get_trend_bar
 
 
